@@ -1,0 +1,7 @@
+{
+  "python.defaultInterpreterPath": "/workspaces/gws-mcp/.venv/bin/python",
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  }
+}

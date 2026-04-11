@@ -34,21 +34,14 @@
       "type": "bind"
     }
   ],
-  "postCreateCommand": "cd /workspaces/gws-mcp && uv sync",
+  "postCreateCommand": "cd /workspaces/gws-mcp && uv sync --extra dev",
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
-        "ms-python.ruff",
+        "charliermarsh.ruff",
         "hashicorp.terraform"
-      ],
-      "settings": {
-        "python.defaultInterpreterPath": "/workspaces/gws-mcp/.venv/bin/python",
-        "editor.formatOnSave": true,
-        "[python]": {
-          "editor.defaultFormatter": "ms-python.ruff"
-        }
-      }
+      ]
     }
   },
   "remoteUser": "vscode"
