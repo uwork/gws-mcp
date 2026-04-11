@@ -22,6 +22,7 @@ packages = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

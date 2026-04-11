@@ -8,7 +8,7 @@ Google Sheets MCP Server — Claude.ai のカスタムコネクタとして Goog
 |---|---|
 | Transport | SSE（Server-Sent Events） |
 | 認証 | OAuth 2.1 + PKCE（Phase 2 以降） |
-| デプロイ先 | Google Cloud Run（プロジェクト: example-gws-mcp） |
+| デプロイ先 | Google Cloud Run |
 | トークン永続化 | Cloud Firestore |
 | シークレット管理 | Secret Manager |
 

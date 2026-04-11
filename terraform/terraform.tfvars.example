@@ -1,0 +1,10 @@
+# このファイルをコピーして terraform.tfvars を作成する
+
+project_id   = "example-id"
+region       = "asia-northeast1"
+service_name = "gws-mcp"
+image_tag    = "latest"
+
+# allUsers にすると未認証アクセスを許可（Phase 1 用）
+# Phase 2 以降で OAuth 保護に切り替える場合は別の IAM メンバーを指定する
+cloud_run_invoker = "allUsers"

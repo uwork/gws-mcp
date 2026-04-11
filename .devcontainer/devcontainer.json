@@ -34,7 +34,7 @@
       "type": "bind"
     }
   ],
-  "postCreateCommand": "cd /workspaces/gws-mcp && uv sync --extra dev",
+  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.config/gcloud && cd /workspaces/gws-mcp && uv sync --extra dev",
   "customizations": {
     "vscode": {
       "extensions": [
