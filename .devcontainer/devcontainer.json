@@ -27,6 +27,11 @@
       "source": "claude-code-config-${devcontainerId}",
       "target": "/home/vscode/.claude",
       "type": "volume"
+    },
+    {
+      "source": "${localEnv:HOME}/.config/gh",
+      "target": "/home/vscode/.config/gh",
+      "type": "bind"
     }
   ],
   "postCreateCommand": "cd /workspaces/gws-mcp && uv sync",
@@ -38,7 +43,7 @@
         "hashicorp.terraform"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/home/vscode/.local/share/uv/python/cpython-3.12.*/bin/python",
+        "python.defaultInterpreterPath": "/workspaces/gws-mcp/.venv/bin/python",
         "editor.formatOnSave": true,
         "[python]": {
           "editor.defaultFormatter": "ms-python.ruff"
