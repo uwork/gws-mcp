@@ -38,6 +38,11 @@ resource "google_project_service" "cloudbuild" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "artifact_registry" {
+  service            = "artifactregistry.googleapis.com"
+  disable_on_destroy = false
+}
+
 # ─── Cloud Build サービスアカウント権限 ───────────────────────────────────────
 # gcloud run deploy --source で Cloud Build が GCS にアクセスするために必要
 
@@ -48,7 +53,7 @@ resource "google_project_iam_member" "compute_ar_writer" {
   role    = "roles/artifactregistry.writer"
   member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 
-  depends_on = [google_project_service.iam]
+  depends_on = [google_project_service.iam, google_project_service.artifact_registry]
 }
 
 resource "google_project_iam_member" "cloudbuild_storage_viewer" {
