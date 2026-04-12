@@ -8,8 +8,8 @@ resource "google_service_account" "gws_mcp" {
 # ─── Cloud Run サービス ────────────────────────────────────────────────────────
 
 resource "google_cloud_run_v2_service" "gws_mcp" {
-  name                 = var.service_name
-  location             = var.region
+  name     = var.service_name
+  location = var.region
   # Phase 1: IAM チェックを無効化して全公開（Claude.ai カスタムコネクタからの接続用）
   # Phase 2 以降で OAuth 保護に切り替える際はここを削除する
   invoker_iam_disabled = true
@@ -37,8 +37,7 @@ resource "google_cloud_run_v2_service" "gws_mcp" {
   }
 
   scaling {
-    manual_instance_count = 0
-    min_instance_count    = 0
+    min_instance_count = 0
   }
 
   lifecycle {
