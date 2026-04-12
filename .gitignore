@@ -1,0 +1,13 @@
+# 環境変数・シークレット
+.env
+
+# ローカル MCP 設定（接続先 URL 等を含む）
+.mcp.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# IDE
+.vscode/

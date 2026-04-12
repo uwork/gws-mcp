@@ -15,15 +15,3 @@ variable "service_name" {
   type        = string
   default     = "gws-mcp"
 }
-
-variable "image_tag" {
-  description = "デプロイするコンテナイメージのタグ"
-  type        = string
-  default     = "latest"
-}
-
-variable "cloud_run_invoker" {
-  description = "Cloud Run を呼び出せる IAM メンバー。公開する場合は allUsers"
-  type        = string
-  default     = "allUsers"
-}
