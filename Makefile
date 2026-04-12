@@ -1,3 +1,5 @@
+-include .env
+
 PROJECT_ID ?= your-project-id
 REGION     ?= us-central1
 SERVICE    ?= gws-mcp
