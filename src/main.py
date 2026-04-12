@@ -9,7 +9,8 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("gws-mcp")
+port = int(os.environ.get("PORT", 8080))
+mcp = FastMCP("gws-mcp", host="0.0.0.0", port=port)
 
 
 @mcp.tool()
@@ -19,5 +20,4 @@ def ping() -> str:
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    mcp.run(transport="sse", host="0.0.0.0", port=port)
+    mcp.run(transport="sse")
