@@ -15,3 +15,19 @@ variable "service_name" {
   type        = string
   default     = "gws-mcp"
 }
+
+variable "service_host" {
+  description = "Cloud Run サービスのホスト名（例: gws-mcp-51272669646.us-central1.run.app）"
+  type        = string
+}
+
+variable "oauth_redirect_uri" {
+  description = "Google OAuth コールバック URI（Cloud Run の /callback エンドポイント）"
+  type        = string
+}
+
+variable "state_secret_key" {
+  description = "state トークン署名キー（本番用の強力なランダム文字列）"
+  type        = string
+  sensitive   = true
+}
