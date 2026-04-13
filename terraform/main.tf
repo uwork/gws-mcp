@@ -43,6 +43,16 @@ resource "google_project_service" "artifact_registry" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "secretmanager" {
+  service            = "secretmanager.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "firestore" {
+  service            = "firestore.googleapis.com"
+  disable_on_destroy = false
+}
+
 # ─── Cloud Build サービスアカウント権限 ───────────────────────────────────────
 # gcloud run deploy --source で Cloud Build が GCS にアクセスするために必要
 

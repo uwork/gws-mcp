@@ -48,8 +48,49 @@ gcloud run deploy gws-mcp \
 
 ## フェーズ
 
-- **Phase 1（現在）**: `ping` ツールのみ・認証なし
-- **Phase 2**: OAuth 2.1 Authorization Server 実装
+- **Phase 1**: `ping` ツールのみ・認証なし
+- **Phase 2（現在）**: OAuth 2.1 Authorization Server 実装
 - **Phase 3**: Google Sheets CRUD 実装
+
+## Phase 2 セットアップ
+
+### 1. Google Cloud Console で OAuth クライアントを作成
+
+1. [API とサービス] → [認証情報] → [OAuth 2.0 クライアント ID] を作成
+2. アプリケーションの種類: **ウェブ アプリケーション**
+3. 承認済みのリダイレクト URI に `https://<Cloud Run URL>/callback` を追加
+
+### 2. Secret Manager にシークレットを登録
+
+```bash
+echo -n "YOUR_CLIENT_ID" | gcloud secrets create mcp-google-client-id \
+  --data-file=- --project=YOUR_PROJECT_ID
+
+echo -n "YOUR_CLIENT_SECRET" | gcloud secrets create mcp-google-client-secret \
+  --data-file=- --project=YOUR_PROJECT_ID
+```
+
+### 3. 環境変数を設定
+
+`.env.example` をコピーして `.env` を作成し、各値を設定する。
+
+```bash
+cp .env.example .env
+# .env を編集して PROJECT_ID, OAUTH_REDIRECT_URI, STATE_SECRET_KEY を設定
+```
+
+### 4. Terraform で Firestore / Secret Manager API と権限を有効化
+
+```bash
+cd terraform
+terraform init -backend-config=backend.conf
+terraform apply
+```
+
+### 5. デプロイ
+
+```bash
+make deploy
+```
 
 詳細は [CLAUDE.md](./CLAUDE.md) を参照。

@@ -1,10 +1,14 @@
 # このファイルをコピーして terraform.tfvars を作成する
 
-project_id   = "example-id"
+project_id   = "your-project-id"
 region       = "asia-northeast1"
 service_name = "gws-mcp"
-image_tag    = "latest"
 
-# allUsers にすると未認証アクセスを許可（Phase 1 用）
-# Phase 2 以降で OAuth 保護に切り替える場合は別の IAM メンバーを指定する
-cloud_run_invoker = "allUsers"
+# Cloud Run デプロイ後に取得した URL を設定
+# 例: https://gws-mcp-<hash>-<region-short>.a.run.app/callback
+service_host       = "gws-mcp-XXXX.us-central1.run.app"
+oauth_redirect_uri = "https://gws-mcp-XXXX.us-central1.run.app/callback"
+
+# 本番では強力なランダム文字列を設定すること
+# 例: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+state_secret_key = "change-me-to-a-strong-random-string"
