@@ -1,19 +1,13 @@
-"""FastMCP サーバーインスタンスとツール定義。"""
+"""FastMCP ツール定義（ping）および全ツールモジュールの登録。"""
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
-
-from config import SERVICE_HOST
-
-mcp = FastMCP(
-    "gws-mcp",
-    transport_security=TransportSecuritySettings(
-        allowed_hosts=[SERVICE_HOST, "localhost", "localhost:8080"],
-    ),
-)
+from features.mcp.instance import mcp  # noqa: F401  (再エクスポート用)
 
 
 @mcp.tool()
 def ping() -> str:
     """サーバーの疎通確認を行う。正常稼働中なら 'pong' を返す。"""
     return "pong"
+
+
+# Sheets ツールを登録（インポートにより @mcp.tool() デコレータが実行される）
+import features.mcp.sheets  # noqa: E402, F401
