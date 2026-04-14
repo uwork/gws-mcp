@@ -69,8 +69,13 @@ resource "google_cloud_run_v2_service" "gws_mcp" {
         value = var.oauth_redirect_uri
       }
       env {
-        name  = "STATE_SECRET_KEY"
-        value = var.state_secret_key
+        name = "STATE_SECRET_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = "mcp-state-secret-key"
+            version = "latest"
+          }
+        }
       }
       env {
         name  = "SERVICE_HOST"
