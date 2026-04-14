@@ -9,7 +9,7 @@ import httpx
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from config import ALLOWED_REDIRECT_URIS
+from config import ALLOWED_REDIRECT_URIS, SERVICE_HOST
 from features.oauth.google import build_google_auth_url, exchange_code_for_tokens
 from features.oauth.state import create_state, verify_state
 from features.oauth.storage import save_tokens
@@ -17,12 +17,23 @@ from features.oauth.storage import save_tokens
 logger = logging.getLogger(__name__)
 
 
+def _base_url(request: Request) -> str:
+    """Cloud Run 環境では内部通信が HTTP になるため、X-Forwarded-Proto または
+    SERVICE_HOST 環境変数を使って正しい https:// ベース URL を返す。"""
+    if SERVICE_HOST:
+        return f"https://{SERVICE_HOST}"
+    # フォールバック: X-Forwarded-Proto を参照してスキームを補正する
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    scheme = proto or request.url.scheme
+    return f"{scheme}://{request.url.netloc}"
+
+
 async def protected_resource(request: Request) -> JSONResponse:
     """
     RFC 9728 OAuth Protected Resource Metadata。
     Claude.ai が最初に問い合わせ、認可サーバーの場所を発見する。
     """
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _base_url(request)
     return JSONResponse({
         "resource": base_url,
         "authorization_servers": [base_url],
@@ -34,7 +45,7 @@ async def well_known(request: Request) -> JSONResponse:
     RFC 8414 Authorization Server Metadata。
     Claude.ai が接続前に参照する。
     """
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _base_url(request)
     return JSONResponse({
         "issuer": base_url,
         "authorization_endpoint": f"{base_url}/authorize",
