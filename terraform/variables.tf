@@ -26,8 +26,3 @@ variable "oauth_redirect_uri" {
   type        = string
 }
 
-variable "state_secret_key" {
-  description = "state トークン署名キー（本番用の強力なランダム文字列）"
-  type        = string
-  sensitive   = true
-}
