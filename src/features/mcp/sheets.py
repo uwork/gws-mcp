@@ -149,8 +149,16 @@ def _format_spreadsheet_metadata(raw: dict) -> dict:
     sheets = []
     for s in sheets_raw:
         sp = _format_sheet_properties(s.get("properties", {}))
-        # banded/conditional/charts の件数だけ示す
-        sp["banded_ranges_count"] = len(s.get("bandedRanges", []))
+        # banded ranges: ID と範囲を返す（deleteBanding に必要）
+        banded_ranges_raw = s.get("bandedRanges", [])
+        sp["banded_ranges"] = [
+            {
+                "banded_range_id": br.get("bandedRangeId"),
+                "range": _format_grid_range(br.get("range", {})),
+            }
+            for br in banded_ranges_raw
+        ]
+        sp["banded_ranges_count"] = len(banded_ranges_raw)
         sp["conditional_formats_count"] = len(s.get("conditionalFormats", []))
         sp["charts_count"] = len(s.get("charts", []))
         sp["merges_count"] = len(s.get("merges", []))
@@ -329,6 +337,7 @@ async def sheets_get_spreadsheet(
                 row_count, column_count,
                 frozen_row_count, frozen_column_count, hide_gridlines,
                 tab_color_style,
+                banded_ranges: [{banded_range_id, range}],  # deleteBanding に使う ID を含む
                 banded_ranges_count, conditional_formats_count,
                 charts_count, merges_count, filter_views_count
             }, ...],
@@ -815,6 +824,47 @@ def sheets_batch_update_help() -> dict:
             "deleteNamedRange": {
                 "desc": "名前付き範囲を削除する",
                 "example": {"deleteNamedRange": {"namedRangeId": "<namedRangeId>"}},
+            },
+        },
+        "banding": {
+            "addBanding": {
+                "desc": "交互の背景色（banded range）を追加する",
+                "example": {
+                    "addBanding": {
+                        "bandedRange": {
+                            "range": {
+                                "sheetId": 0,
+                                "startRowIndex": 0,
+                                "endRowIndex": 10,
+                                "startColumnIndex": 0,
+                                "endColumnIndex": 5,
+                            },
+                            "rowProperties": {
+                                "headerColor": {"red": 0.2, "green": 0.6, "blue": 0.9},
+                                "firstBandColor": {"red": 1, "green": 1, "blue": 1},
+                                "secondBandColor": {"red": 0.9, "green": 0.95, "blue": 1},
+                            },
+                        }
+                    }
+                },
+            },
+            "updateBanding": {
+                "desc": "既存の banded range を更新する",
+                "fields": "range | rowProperties | columnProperties",
+                "example": {
+                    "updateBanding": {
+                        "bandedRange": {"bandedRangeId": 0},
+                        "fields": "rowProperties",
+                    }
+                },
+            },
+            "deleteBanding": {
+                "desc": (
+                    "交互の背景色（banded range）を削除する。"
+                    "bandedRangeId は sheets_get_spreadsheet の"
+                    " banded_ranges[].banded_range_id で取得する。"
+                ),
+                "example": {"deleteBanding": {"bandedRangeId": 0}},
             },
         },
         "conditional_format": {
