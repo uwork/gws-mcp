@@ -11,6 +11,7 @@ RUN uv pip install --system -e . --no-cache
 
 # アプリケーションコードをコピー
 COPY src/ ./src/
+COPY src/static/ ./static/
 
 # Cloud Run は PORT 環境変数でポートを指定する
 ENV PORT=8080
