@@ -4,6 +4,7 @@ import contextlib
 import logging
 
 from starlette.applications import Starlette
+from starlette.responses import FileResponse
 from starlette.routing import Mount, Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -59,6 +60,7 @@ routes = [
     Route("/authorize", authorize),
     Route("/callback", callback),
     Route("/token", token, methods=["GET", "POST"]),
+    Route("/favicon.ico", lambda _: FileResponse("static/favicon.ico")),
     Mount("/", app=BearerAuthMiddleware(_mcp_app)),
 ]
 
