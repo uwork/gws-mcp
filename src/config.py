@@ -5,7 +5,7 @@ import os
 PROJECT_ID = os.environ.get("PROJECT_ID", "")
 REGION = os.environ.get("REGION", "asia-northeast1")
 SERVICE = os.environ.get("SERVICE", "gws-mcp")
-SERVICE_HOST = os.environ.get("SERVICE_HOST", "localhost:8080")
+SERVICE_HOST = os.environ.get("SERVICE_HOST", "")
 
 # Secret Manager のシークレット名
 SECRET_NAME_CLIENT_ID = os.environ.get("SECRET_NAME_CLIENT_ID", "mcp-google-client-id")
@@ -15,16 +15,25 @@ SECRET_NAME_CLIENT_SECRET = os.environ.get("SECRET_NAME_CLIENT_SECRET", "mcp-goo
 FIRESTORE_COLLECTION = os.environ.get("FIRESTORE_COLLECTION", "mcp_tokens")
 
 # OAuth
-OAUTH_REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", "http://localhost:8080/callback")
+# SERVICE_HOST が設定されている場合は https://<host>/callback を自動導出する。
+# OAUTH_REDIRECT_URI 環境変数で明示的に上書き可能。
+_default_redirect_uri = (
+    f"https://{SERVICE_HOST}/callback" if SERVICE_HOST else "http://localhost:8080/callback"
+)
+OAUTH_REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", _default_redirect_uri)
 STATE_SECRET_KEY = os.environ.get("STATE_SECRET_KEY", "dev-secret-change-in-production")
 
 _ALLOWED_REDIRECT_URIS_ENV = os.environ.get(
     "ALLOWED_REDIRECT_URIS",
     "https://claude.ai/api/mcp/auth_callback\nhttp://localhost:8080/callback",
 )
-ALLOWED_REDIRECT_URIS: frozenset[str] = frozenset(
+_allowed_set: set[str] = {
     u.strip() for u in _ALLOWED_REDIRECT_URIS_ENV.splitlines() if u.strip()
-)
+}
+# SERVICE_HOST から自動導出した callback URI も許可リストに含める
+if SERVICE_HOST:
+    _allowed_set.add(f"https://{SERVICE_HOST}/callback")
+ALLOWED_REDIRECT_URIS: frozenset[str] = frozenset(_allowed_set)
 
 # Google OAuth
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"

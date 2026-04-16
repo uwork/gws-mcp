@@ -1,3 +1,10 @@
+# ─── ローカル変数 ─────────────────────────────────────────────────────────────
+
+locals {
+  # SERVICE_HOST が設定されていれば https://<host>/callback を自動導出する
+  oauth_redirect_uri = var.service_host != "" ? "https://${var.service_host}/callback" : ""
+}
+
 # ─── サービスアカウント ────────────────────────────────────────────────────────
 
 resource "google_service_account" "gws_mcp" {
@@ -63,10 +70,6 @@ resource "google_cloud_run_v2_service" "gws_mcp" {
       env {
         name  = "SERVICE"
         value = var.service_name
-      }
-      env {
-        name  = "OAUTH_REDIRECT_URI"
-        value = var.oauth_redirect_uri
       }
       env {
         name = "STATE_SECRET_KEY"

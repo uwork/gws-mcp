@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import logging
+import secrets
 import time
 
 import httpx
@@ -50,6 +51,7 @@ async def well_known(request: Request) -> JSONResponse:
         "issuer": base_url,
         "authorization_endpoint": f"{base_url}/authorize",
         "token_endpoint": f"{base_url}/token",
+        "registration_endpoint": f"{base_url}/register",
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
@@ -137,6 +139,33 @@ async def callback(request: Request) -> Response:
     if mcp_state:
         redirect_url += f"&state={mcp_state}"
     return RedirectResponse(url=redirect_url, status_code=302)
+
+
+async def register(request: Request) -> JSONResponse:
+    """
+    RFC 7591 OAuth 2.0 Dynamic Client Registration。
+    MCP クライアント（Claude.ai）がクライアント情報を登録する。
+    client_id を発行して返す（client_secret 不要）。
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_request"}, status_code=400)
+
+    client_id = secrets.token_urlsafe(16)
+    response_data: dict = {
+        "client_id": client_id,
+        "token_endpoint_auth_method": "none",
+        "grant_types": body.get("grant_types", ["authorization_code", "refresh_token"]),
+        "response_types": body.get("response_types", ["code"]),
+    }
+    if "redirect_uris" in body:
+        response_data["redirect_uris"] = body["redirect_uris"]
+    for field in ("client_name", "client_uri", "scope"):
+        if field in body:
+            response_data[field] = body[field]
+
+    return JSONResponse(response_data, status_code=201)
 
 
 async def token(request: Request) -> JSONResponse:
