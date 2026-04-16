@@ -17,12 +17,8 @@ variable "service_name" {
 }
 
 variable "service_host" {
-  description = "Cloud Run サービスのホスト名（例: gws-mcp-51272669646.us-central1.run.app）"
+  description = "カスタムドメインまたは Cloud Run デフォルトホスト名（例: mcp.example.com）。設定すると OAUTH_REDIRECT_URI を自動導出する。"
   type        = string
-}
-
-variable "oauth_redirect_uri" {
-  description = "Google OAuth コールバック URI（Cloud Run の /callback エンドポイント）"
-  type        = string
+  default     = ""
 }
 

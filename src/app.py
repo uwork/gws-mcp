@@ -14,6 +14,7 @@ from features.oauth.routes import (
     authorize,
     callback,
     protected_resource,
+    register,
     token,
     well_known,
 )
@@ -59,6 +60,7 @@ routes = [
     Route("/.well-known/oauth-authorization-server", well_known),
     Route("/authorize", authorize),
     Route("/callback", callback),
+    Route("/register", register, methods=["POST"]),
     Route("/token", token, methods=["GET", "POST"]),
     Route("/favicon.ico", lambda _: FileResponse("static/favicon.ico")),
     Mount("/", app=BearerAuthMiddleware(_mcp_app)),
