@@ -10,8 +10,8 @@ import httpx
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from config import ALLOWED_REDIRECT_URIS, SERVICE_HOST
-from features.oauth.google import build_google_auth_url, exchange_code_for_tokens
+from config import ALLOWED_GOOGLE_DOMAINS, ALLOWED_REDIRECT_URIS, SERVICE_HOST
+from features.oauth.google import build_google_auth_url, exchange_code_for_tokens, extract_email_from_id_token
 from features.oauth.state import create_state, verify_state
 from features.oauth.storage import save_tokens
 
@@ -120,6 +120,18 @@ async def callback(request: Request) -> Response:
     except httpx.HTTPStatusError as e:
         logger.error("Token exchange failed: %s", e)
         return HTMLResponse("<h1>トークン交換に失敗しました</h1>", status_code=500)
+
+    if ALLOWED_GOOGLE_DOMAINS:
+        id_token = token_response.get("id_token", "")
+        email = extract_email_from_id_token(id_token) if id_token else None
+        if not email:
+            return HTMLResponse("<h1>メールアドレスを取得できませんでした</h1>", status_code=403)
+        domain = email.split("@")[-1].lower()
+        if domain not in ALLOWED_GOOGLE_DOMAINS:
+            return HTMLResponse(
+                f"<h1>このドメイン（{domain}）はアクセスが許可されていません</h1>",
+                status_code=403,
+            )
 
     user_id = hashlib.sha256(state_data["code_challenge"].encode()).hexdigest()[:32]
     tokens = {
