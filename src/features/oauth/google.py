@@ -1,10 +1,13 @@
 """Google OAuth ヘルパー: 認可URL生成・トークン交換・リフレッシュ。"""
 
+import base64
+import json
 import time
 
 import httpx
 
 from config import (
+    ALLOWED_GOOGLE_DOMAINS,
     GOOGLE_AUTH_URL,
     GOOGLE_SCOPES,
     GOOGLE_TOKEN_URL,
@@ -27,8 +30,29 @@ def build_google_auth_url(state: str) -> str:
         "prompt": "consent",
         "state": state,
     }
+    if ALLOWED_GOOGLE_DOMAINS:
+        # 1ドメインの場合はそのドメインをヒントとして渡す（UI絞り込み）。
+        # 複数の場合は "*" で任意のWorkspaceドメインを示す。
+        params["hd"] = next(iter(ALLOWED_GOOGLE_DOMAINS)) if len(ALLOWED_GOOGLE_DOMAINS) == 1 else "*"
     query = "&".join(f"{k}={v}" for k, v in params.items())
     return f"{GOOGLE_AUTH_URL}?{query}"
+
+
+def extract_email_from_id_token(id_token: str) -> str | None:
+    """ID トークン（JWT）のペイロードからメールアドレスを取得する。
+    Google のトークンエンドポイントから HTTPS で直接受け取るため署名検証は省略。
+    """
+    try:
+        payload_b64 = id_token.split(".")[1]
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += "=" * padding
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        if not payload.get("email_verified", False):
+            return None
+        return payload.get("email")
+    except Exception:
+        return None
 
 
 async def exchange_code_for_tokens(code: str) -> dict:

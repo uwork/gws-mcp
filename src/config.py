@@ -39,6 +39,16 @@ ALLOWED_REDIRECT_URIS: frozenset[str] = frozenset(_allowed_set)
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_SCOPES = (
+    "openid "
+    "email "
     "https://www.googleapis.com/auth/spreadsheets "
     "https://www.googleapis.com/auth/drive.readonly"
+)
+
+# 許可する Google ログインドメイン。カンマまたは改行区切り。未設定の場合は制限なし。
+_ALLOWED_GOOGLE_DOMAINS_ENV = os.environ.get("ALLOWED_GOOGLE_DOMAINS", "")
+ALLOWED_GOOGLE_DOMAINS: frozenset[str] = frozenset(
+    d.strip().lower()
+    for d in _ALLOWED_GOOGLE_DOMAINS_ENV.replace(",", "\n").splitlines()
+    if d.strip()
 )
