@@ -125,9 +125,11 @@ async def callback(request: Request) -> Response:
         id_token = token_response.get("id_token", "")
         email = extract_email_from_id_token(id_token) if id_token else None
         if not email:
+            logger.error("id_token missing or unparseable; check GOOGLE_SCOPES includes 'openid email'")
             return HTMLResponse("<h1>メールアドレスを取得できませんでした</h1>", status_code=403)
         domain = email.split("@")[-1].lower()
         if domain not in ALLOWED_GOOGLE_DOMAINS:
+            logger.warning("Login blocked: domain=%s not in allowed list", domain)
             return HTMLResponse(
                 f"<h1>このドメイン（{domain}）はアクセスが許可されていません</h1>",
                 status_code=403,

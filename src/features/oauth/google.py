@@ -48,6 +48,8 @@ def extract_email_from_id_token(id_token: str) -> str | None:
         if padding != 4:
             payload_b64 += "=" * padding
         payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        if not payload.get("email_verified", False):
+            return None
         return payload.get("email")
     except Exception:
         return None
