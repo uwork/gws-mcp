@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import html
 import logging
 import secrets
 import time
@@ -107,7 +108,7 @@ async def callback(request: Request) -> Response:
     error = request.query_params.get("error")
 
     if error:
-        return HTMLResponse(f"<h1>認証エラー</h1><p>{error}</p>", status_code=400)
+        return HTMLResponse(f"<h1>認証エラー</h1><p>{html.escape(error)}</p>", status_code=400)
     if not code or not state_token:
         return HTMLResponse("<h1>不正なリクエスト</h1>", status_code=400)
 
@@ -131,7 +132,7 @@ async def callback(request: Request) -> Response:
         if domain not in ALLOWED_GOOGLE_DOMAINS:
             logger.warning("Login blocked: domain=%s not in allowed list", domain)
             return HTMLResponse(
-                f"<h1>このドメイン（{domain}）はアクセスが許可されていません</h1>",
+                f"<h1>このドメイン（{html.escape(domain)}）はアクセスが許可されていません</h1>",
                 status_code=403,
             )
 

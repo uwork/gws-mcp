@@ -21,7 +21,13 @@ _default_redirect_uri = (
     f"https://{SERVICE_HOST}/callback" if SERVICE_HOST else "http://localhost:8080/callback"
 )
 OAUTH_REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", _default_redirect_uri)
-STATE_SECRET_KEY = os.environ.get("STATE_SECRET_KEY", "dev-secret-change-in-production")
+_state_secret_key = os.environ.get("STATE_SECRET_KEY", "")
+if not _state_secret_key:
+    raise RuntimeError(
+        "STATE_SECRET_KEY environment variable is required. "
+        "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
+STATE_SECRET_KEY = _state_secret_key
 
 _ALLOWED_REDIRECT_URIS_ENV = os.environ.get(
     "ALLOWED_REDIRECT_URIS",
