@@ -4,6 +4,7 @@ app.py をインポートすると features.mcp.server 経由で FastMCP が初�
 ここではミドルウェアを単体で再実装して検証する。
 """
 
+import logging
 import time
 
 from starlette.applications import Starlette
@@ -16,6 +17,7 @@ from features.mcp.auth import get_current_user_id, set_user_id
 from features.oauth.state import create_state, verify_state
 
 _SERVICE_HOST = "testserver"
+_logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +42,8 @@ class _BearerAuthMiddleware:
                 if token_data and "user_id" in token_data:
                     set_user_id(token_data["user_id"])
                     authenticated = True
+                else:
+                    _logger.debug("BearerAuthMiddleware: invalid or expired MCP token")
 
             if not authenticated:
                 host = _SERVICE_HOST or headers.get(b"host", b"").decode()
@@ -112,6 +116,7 @@ def test_non_bearer_auth_returns_401():
     client = _make_middleware_client()
     resp = client.get("/me", headers={"Authorization": "Basic dXNlcjpwYXNz"})
     assert resp.status_code == 401
+    assert resp.json()["error"] == "unauthorized"
 
 
 def test_expired_bearer_returns_401():
