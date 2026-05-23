@@ -63,31 +63,37 @@ gcloud run deploy gws-mcp \
 2. アプリケーションの種類: **ウェブ アプリケーション**
 3. 承認済みのリダイレクト URI に `https://<Cloud Run URL>/callback` を追加
 
-### 2. Secret Manager にシークレットを登録
-
-```bash
-echo -n "YOUR_CLIENT_ID" | gcloud secrets create mcp-google-client-id \
-  --data-file=- --project=YOUR_PROJECT_ID
-
-echo -n "YOUR_CLIENT_SECRET" | gcloud secrets create mcp-google-client-secret \
-  --data-file=- --project=YOUR_PROJECT_ID
-```
-
-### 3. 環境変数を設定
+### 2. 環境変数を設定
 
 `.env.example` をコピーして `.env` を作成し、各値を設定する。
 
 ```bash
 cp .env.example .env
-# .env を編集して PROJECT_ID, OAUTH_REDIRECT_URI, STATE_SECRET_KEY を設定
+# PROJECT_ID, SERVICE_HOST, STATE_SECRET_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET を設定
 ```
 
-### 4. Terraform で Firestore / Secret Manager API と権限を有効化
+> **注意**: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `STATE_SECRET_KEY` は
+> `make tf-apply` 時に Terraform state（GCS）へ**平文で**記録される。
+> state バケットの IAM アクセス権は最小権限で管理すること。
+
+### 3. Terraform で GCP リソースと Secret Manager シークレットを作成
 
 ```bash
 make tf-init
-make tf-apply
+make tf-apply   # Secret Manager へのシークレット初期投入も行われる
 ```
+
+既存の手動作成シークレット（旧名 `mcp-google-client-id` 等）がある場合は
+事前に `terraform import` が必要:
+
+```bash
+terraform -chdir=terraform import \
+  google_secret_manager_secret.google_client_id \
+  projects/YOUR_PROJECT_ID/secrets/gws-mcp-google-client-id
+```
+
+> **リネームについて**: v0.x 以前で手動作成した `mcp-state-secret-key` は
+> `gws-mcp-state-secret-key` にリネームされた。旧シークレットの値を新名で再登録すること。
 
 ### 5. デプロイ
 
