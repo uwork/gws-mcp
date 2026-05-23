@@ -9,9 +9,7 @@ terraform {
   }
 
   backend "gcs" {
-    # bucket は terraform init 時に -backend-config で渡す
-    # 例: terraform init -backend-config="bucket=$(terraform -chdir=. output -raw tfstate_bucket)"
-    # または: terraform init -backend-config=backend.conf
+    # bucket は .env の TFSTATE_BUCKET から make tf-init 経由で渡す
     prefix = "gws-mcp"
   }
 }

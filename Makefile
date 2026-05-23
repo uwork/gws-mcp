@@ -21,7 +21,7 @@ deploy:
 		--source=.
 
 tf-init:
-	cd $(TF_DIR) && terraform init -backend-config=backend.conf
+	cd $(TF_DIR) && terraform init -backend-config="bucket=$(TFSTATE_BUCKET)"
 
 tf-plan:
 	cd $(TF_DIR) && terraform plan

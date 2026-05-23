@@ -6,7 +6,6 @@
 
 # 実際の変数ファイル（機密情報を含む可能性あり）
 terraform.tfvars
-backend.conf
 
 # クラッシュログ
 crash.log
