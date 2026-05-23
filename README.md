@@ -20,7 +20,7 @@ Google Sheets MCP Server — Claude.ai のカスタムコネクタとして Goog
 # DevContainer を使う場合は VS Code で "Reopen in Container"
 
 # または手動セットアップ
-uv sync
+uv sync --extra dev   # dev 依存（pytest, starlette 等）を含めてインストール
 PORT=8080 uv run python src/main.py
 
 # テスト実行
