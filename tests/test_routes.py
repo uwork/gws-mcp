@@ -584,8 +584,22 @@ def _make_refresh_token(user_id: str = "user-abc") -> str:
     return create_state({"user_id": user_id, "type": "refresh", "issued_at": time.time()})
 
 
-def test_token_refresh_success(client):
+def _mock_load_tokens_for_refresh(mocker, refresh_token: str, user_id: str = "user-abc") -> dict:
+    """refresh_token に対応する fingerprint を持つ Firestore ドキュメントをモック。"""
+    import hashlib
+
+    stored = {
+        "user_id": user_id,
+        "mcp_refresh_fingerprint": hashlib.sha256(refresh_token.encode()).hexdigest(),
+    }
+    mocker.patch.object(oauth_routes, "load_tokens", return_value=stored)
+    mocker.patch.object(oauth_routes, "save_tokens")
+    return stored
+
+
+def test_token_refresh_success(client, mocker):
     refresh = _make_refresh_token()
+    _mock_load_tokens_for_refresh(mocker, refresh)
     r = client.post(
         "/token",
         data={"grant_type": "refresh_token", "refresh_token": refresh},
@@ -596,8 +610,9 @@ def test_token_refresh_success(client):
     assert body["token_type"] == "Bearer"
 
 
-def test_token_refresh_new_token_contains_same_user_id(client):
+def test_token_refresh_new_token_contains_same_user_id(client, mocker):
     refresh = _make_refresh_token(user_id="user-xyz")
+    _mock_load_tokens_for_refresh(mocker, refresh, user_id="user-xyz")
     body = client.post(
         "/token",
         data={"grant_type": "refresh_token", "refresh_token": refresh},
@@ -607,8 +622,9 @@ def test_token_refresh_new_token_contains_same_user_id(client):
     assert token_data["type"] == "access"
 
 
-def test_token_refresh_returns_new_refresh_token(client):
+def test_token_refresh_returns_new_refresh_token(client, mocker):
     refresh = _make_refresh_token(user_id="user-rotate")
+    _mock_load_tokens_for_refresh(mocker, refresh, user_id="user-rotate")
     body = client.post(
         "/token",
         data={"grant_type": "refresh_token", "refresh_token": refresh},
@@ -618,6 +634,52 @@ def test_token_refresh_returns_new_refresh_token(client):
     assert new_refresh_data is not None
     assert new_refresh_data["type"] == "refresh"
     assert new_refresh_data["user_id"] == "user-rotate"
+
+
+def test_token_refresh_saves_new_fingerprint(client, mocker):
+    """リフレッシュ後に新しい fingerprint が Firestore に保存されることを確認。"""
+    import hashlib
+
+    refresh = _make_refresh_token()
+    _mock_load_tokens_for_refresh(mocker, refresh)
+    mock_save = mocker.patch.object(oauth_routes, "save_tokens")
+    body = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": refresh},
+    ).json()
+    new_fingerprint = hashlib.sha256(body["refresh_token"].encode()).hexdigest()
+    saved_tokens = mock_save.call_args[0][1]
+    assert saved_tokens["mcp_refresh_fingerprint"] == new_fingerprint
+
+
+def test_token_refresh_rejects_wrong_fingerprint(client, mocker):
+    """fingerprint が一致しない（盗用済みトークン）は invalid_grant を返す。"""
+    import hashlib
+
+    refresh = _make_refresh_token()
+    mocker.patch.object(
+        oauth_routes,
+        "load_tokens",
+        return_value={"mcp_refresh_fingerprint": hashlib.sha256(b"different-token").hexdigest()},
+    )
+    r = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": refresh},
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_grant"
+
+
+def test_token_refresh_rejects_when_no_firestore_record(client, mocker):
+    """Firestore にレコードがない場合は invalid_grant を返す。"""
+    refresh = _make_refresh_token()
+    mocker.patch.object(oauth_routes, "load_tokens", return_value=None)
+    r = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": refresh},
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_grant"
 
 
 def test_token_refresh_rejects_access_token(client, pkce_pair):

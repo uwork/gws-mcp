@@ -18,7 +18,7 @@ from features.oauth.google import (
     extract_email_from_id_token,
 )
 from features.oauth.state import create_state, verify_state
-from features.oauth.storage import save_tokens
+from features.oauth.storage import load_tokens, save_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +242,11 @@ async def token(request: Request) -> JSONResponse:
         mcp_refresh = create_state(
             {"user_id": user_id, "type": "refresh", "issued_at": time.time()}
         )
+        stored = load_tokens(user_id) or {}
+        save_tokens(
+            user_id,
+            {**stored, "mcp_refresh_fingerprint": hashlib.sha256(mcp_refresh.encode()).hexdigest()},
+        )
         return JSONResponse(
             {
                 "access_token": mcp_token,
@@ -259,9 +264,19 @@ async def token(request: Request) -> JSONResponse:
         if token_data is None or token_data.get("type") != "refresh":
             return JSONResponse({"error": "invalid_grant"}, status_code=400)
         user_id = token_data["user_id"]
+        stored = load_tokens(user_id)
+        if (
+            stored is None
+            or stored.get("mcp_refresh_fingerprint") != hashlib.sha256(refresh.encode()).hexdigest()
+        ):
+            return JSONResponse({"error": "invalid_grant"}, status_code=400)
         mcp_token = create_state({"user_id": user_id, "type": "access", "issued_at": time.time()})
         mcp_refresh = create_state(
             {"user_id": user_id, "type": "refresh", "issued_at": time.time()}
+        )
+        save_tokens(
+            user_id,
+            {**stored, "mcp_refresh_fingerprint": hashlib.sha256(mcp_refresh.encode()).hexdigest()},
         )
         return JSONResponse(
             {
