@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/lint-test.sh",
+            "timeout": 60,
+            "statusMessage": "Running lint, format, and tests..."
+          }
+        ]
+      }
+    ]
+  }
+}
