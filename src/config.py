@@ -21,7 +21,13 @@ _default_redirect_uri = (
     f"https://{SERVICE_HOST}/callback" if SERVICE_HOST else "http://localhost:8080/callback"
 )
 OAUTH_REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", _default_redirect_uri)
-STATE_SECRET_KEY = os.environ.get("STATE_SECRET_KEY", "dev-secret-change-in-production")
+_state_secret_key = os.environ.get("STATE_SECRET_KEY", "")
+if not _state_secret_key:
+    raise RuntimeError(
+        "STATE_SECRET_KEY environment variable is required. "
+        "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
+STATE_SECRET_KEY = _state_secret_key
 
 _ALLOWED_REDIRECT_URIS_ENV = os.environ.get(
     "ALLOWED_REDIRECT_URIS",
@@ -39,6 +45,16 @@ ALLOWED_REDIRECT_URIS: frozenset[str] = frozenset(_allowed_set)
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_SCOPES = (
+    "openid "
+    "email "
     "https://www.googleapis.com/auth/spreadsheets "
     "https://www.googleapis.com/auth/drive.readonly"
+)
+
+# 許可する Google ログインドメイン。カンマまたは改行区切り。未設定の場合は制限なし。
+_ALLOWED_GOOGLE_DOMAINS_ENV = os.environ.get("ALLOWED_GOOGLE_DOMAINS", "")
+ALLOWED_GOOGLE_DOMAINS: frozenset[str] = frozenset(
+    d.strip().lower()
+    for d in _ALLOWED_GOOGLE_DOMAINS_ENV.replace(",", "\n").splitlines()
+    if d.strip()
 )
