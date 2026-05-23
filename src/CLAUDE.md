@@ -1,6 +1,6 @@
 # src — 実装ガイド
 
-> **メンテナンスルール**: `src/` 以下のファイルを変更したとき、このファイルの記述と食い違いが生じる場合は必ずここを更新すること。対象は ディレクトリ構造・エンドポイント・ツール一覧・環境変数・依存ライブラリ・認証フロー。
+> **メンテナンスルール**: `src/` 以下のファイルを変更したとき、このファイルの記述と食い違いが生じる場合は必ずここを更新すること。対象はディレクトリ構造・エンドポイント・ツール一覧・環境変数・依存ライブラリ・認証フロー。
 
 ## ディレクトリ構造
 
@@ -30,7 +30,7 @@ src/
 ```
 Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ──► /callback
                                                                      │
-                              ◄──[Mcp Bearer Token]───────────────────┘
+                              ◄──[MCP Bearer Token]───────────────────┘
 ```
 
 **Layer 1: MCP 認証**（`features/oauth/routes.py`）
@@ -38,7 +38,7 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 - `/.well-known/oauth-authorization-server` — RFC 8414 AS metadata
 - `/register` — RFC 7591 動的クライアント登録（client_secret 不要）
 - `/authorize` — PKCE (S256) 付き認可リクエスト受付 → Google 認可画面にリダイレクト
-- `/token` — 認可コード → MCP Bearer トークン交換（PKCE 検証）
+- `/token` — 認可コード → MCP Bearer トークン交換（PKCE 検証）、リフレッシュトークンによる再発行にも対応
 - MCP Bearer トークンは `itsdangerous.URLSafeTimedSerializer` で生成・検証（有効期限 1 時間）
 
 **Layer 2: Google 認証**（`features/oauth/google.py`）
@@ -65,20 +65,20 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 `callback` エンドポイントで `code_challenge` の SHA-256 ハッシュ先頭 32 文字を user_id とする。  
 同じ PKCE フローなら常に同じ user_id になる（Firestore ドキュメントキー）。
 
-## MCP ツール一覧（`features/mcp/sheets.py`）
+## MCP ツール一覧（`features/mcp/`）
 
-| ツール名 | 概要 |
-|---|---|
-| `ping` | 疎通確認 |
-| `sheets_get_values` | 単一範囲の値取得 |
-| `sheets_batch_get_values` | 複数範囲を一括取得 |
-| `sheets_get_spreadsheet` | スプレッドシートのメタデータ取得 |
-| `sheets_create_spreadsheet` | 新規スプレッドシート作成 |
-| `sheets_update_values` | 範囲への値書き込み（上書き） |
-| `sheets_append_values` | テーブル末尾への追記 |
-| `sheets_clear_values` | 範囲のセル値クリア |
-| `sheets_batch_update` | 構造・書式の一括更新（spreadsheets.batchUpdate） |
-| `sheets_batch_update_help` | `sheets_batch_update` の request 種別リファレンス |
+| ツール名 | 定義ファイル | 概要 |
+|---|---|---|
+| `ping` | `server.py` | 疎通確認 |
+| `sheets_get_values` | `sheets.py` | 単一範囲の値取得 |
+| `sheets_batch_get_values` | `sheets.py` | 複数範囲を一括取得 |
+| `sheets_get_spreadsheet` | `sheets.py` | スプレッドシートのメタデータ取得 |
+| `sheets_create_spreadsheet` | `sheets.py` | 新規スプレッドシート作成 |
+| `sheets_update_values` | `sheets.py` | 範囲への値書き込み（上書き） |
+| `sheets_append_values` | `sheets.py` | テーブル末尾への追記 |
+| `sheets_clear_values` | `sheets.py` | 範囲のセル値クリア |
+| `sheets_batch_update` | `sheets.py` | 構造・書式の一括更新（spreadsheets.batchUpdate） |
+| `sheets_batch_update_help` | `sheets.py` | `sheets_batch_update` の request 種別リファレンス |
 
 ツールのレスポンスは Google API の camelCase / ネスト構造を整形した snake_case のフラット dict。  
 2D 配列に 2 行以上あれば `headers` / `records` キーも追加する（AI が扱いやすい形式）。
@@ -89,7 +89,7 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 |---|---|---|
 | `STATE_SECRET_KEY` | ✅ | state / MCP トークン署名鍵（32 バイト hex 推奨） |
 | `PROJECT_ID` | ✅ | GCP プロジェクト ID |
-| `SERVICE_HOST` | ✅ | 公開ホスト名（例: `myservice-abc123.a.run.app`）。HTTPS URL 生成に使用 |
+| `SERVICE_HOST` | | 公開ホスト名（例: `myservice-abc123.a.run.app`）。HTTPS URL 生成に使用。未設定時は `X-Forwarded-Proto` ヘッダーで補完（ローカル開発では省略可） |
 | `REGION` | | Cloud Run リージョン（デフォルト: `asia-northeast1`） |
 | `FIRESTORE_COLLECTION` | | Firestore コレクション名（デフォルト: `mcp_tokens`） |
 | `OAUTH_REDIRECT_URI` | | Google OAuth コールバック URI（SERVICE_HOST から自動導出） |
