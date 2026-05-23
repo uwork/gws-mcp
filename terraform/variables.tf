@@ -22,3 +22,24 @@ variable "service_host" {
   default     = ""
 }
 
+variable "google_client_id" {
+  description = "Google OAuth クライアント ID（Secret Manager の初期バージョン投入用）"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth クライアントシークレット（Secret Manager の初期バージョン投入用）"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "state_secret_key" {
+  description = "OAuth state トークン署名キー（Secret Manager の初期バージョン投入用）"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
