@@ -12,9 +12,13 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from config import ALLOWED_GOOGLE_DOMAINS, ALLOWED_REDIRECT_URIS, SERVICE_HOST
-from features.oauth.google import build_google_auth_url, exchange_code_for_tokens, extract_email_from_id_token
+from features.oauth.google import (
+    build_google_auth_url,
+    exchange_code_for_tokens,
+    extract_email_from_id_token,
+)
 from features.oauth.state import create_state, verify_state
-from features.oauth.storage import save_tokens
+from features.oauth.storage import load_tokens, save_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +40,12 @@ async def protected_resource(request: Request) -> JSONResponse:
     Claude.ai が最初に問い合わせ、認可サーバーの場所を発見する。
     """
     base_url = _base_url(request)
-    return JSONResponse({
-        "resource": base_url,
-        "authorization_servers": [base_url],
-    })
+    return JSONResponse(
+        {
+            "resource": base_url,
+            "authorization_servers": [base_url],
+        }
+    )
 
 
 async def well_known(request: Request) -> JSONResponse:
@@ -48,16 +54,18 @@ async def well_known(request: Request) -> JSONResponse:
     Claude.ai が接続前に参照する。
     """
     base_url = _base_url(request)
-    return JSONResponse({
-        "issuer": base_url,
-        "authorization_endpoint": f"{base_url}/authorize",
-        "token_endpoint": f"{base_url}/token",
-        "registration_endpoint": f"{base_url}/register",
-        "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code", "refresh_token"],
-        "code_challenge_methods_supported": ["S256"],
-        "token_endpoint_auth_methods_supported": ["none"],
-    })
+    return JSONResponse(
+        {
+            "issuer": base_url,
+            "authorization_endpoint": f"{base_url}/authorize",
+            "token_endpoint": f"{base_url}/token",
+            "registration_endpoint": f"{base_url}/register",
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code", "refresh_token"],
+            "code_challenge_methods_supported": ["S256"],
+            "token_endpoint_auth_methods_supported": ["none"],
+        }
+    )
 
 
 async def authorize(request: Request) -> Response:
@@ -126,7 +134,9 @@ async def callback(request: Request) -> Response:
         id_token = token_response.get("id_token", "")
         email = extract_email_from_id_token(id_token) if id_token else None
         if not email:
-            logger.error("id_token missing or unparseable; check GOOGLE_SCOPES includes 'openid email'")
+            logger.error(
+                "id_token missing or unparseable; check GOOGLE_SCOPES includes 'openid email'"
+            )
             return HTMLResponse("<h1>メールアドレスを取得できませんでした</h1>", status_code=403)
         domain = email.split("@")[-1].lower()
         if domain not in ALLOWED_GOOGLE_DOMAINS:
@@ -228,26 +238,53 @@ async def token(request: Request) -> JSONResponse:
             )
 
         user_id = code_data["user_id"]
-        mcp_token = create_state({"user_id": user_id, "issued_at": time.time()})
-        return JSONResponse({
-            "access_token": mcp_token,
-            "token_type": "Bearer",
-            "expires_in": 3600,
-        })
+        mcp_token = create_state({"user_id": user_id, "type": "access", "issued_at": time.time()})
+        mcp_refresh = create_state(
+            {"user_id": user_id, "type": "refresh", "issued_at": time.time()}
+        )
+        stored = load_tokens(user_id) or {}
+        save_tokens(
+            user_id,
+            {**stored, "mcp_refresh_fingerprint": hashlib.sha256(mcp_refresh.encode()).hexdigest()},
+        )
+        return JSONResponse(
+            {
+                "access_token": mcp_token,
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "refresh_token": mcp_refresh,
+            }
+        )
 
     elif grant_type == "refresh_token":
         refresh = params.get("refresh_token", "")
         if not refresh:
             return JSONResponse({"error": "invalid_request"}, status_code=400)
         token_data = verify_state(refresh, max_age=60 * 60 * 24 * 30)  # 30日
-        if token_data is None:
+        if token_data is None or token_data.get("type") != "refresh":
             return JSONResponse({"error": "invalid_grant"}, status_code=400)
         user_id = token_data["user_id"]
-        mcp_token = create_state({"user_id": user_id, "issued_at": time.time()})
-        return JSONResponse({
-            "access_token": mcp_token,
-            "token_type": "Bearer",
-            "expires_in": 3600,
-        })
+        stored = load_tokens(user_id)
+        if (
+            stored is None
+            or stored.get("mcp_refresh_fingerprint") != hashlib.sha256(refresh.encode()).hexdigest()
+        ):
+            return JSONResponse({"error": "invalid_grant"}, status_code=400)
+        mcp_token = create_state({"user_id": user_id, "type": "access", "issued_at": time.time()})
+        mcp_refresh = create_state(
+            {"user_id": user_id, "type": "refresh", "issued_at": time.time()}
+        )
+        save_tokens(
+            user_id,
+            {**stored, "mcp_refresh_fingerprint": hashlib.sha256(mcp_refresh.encode()).hexdigest()},
+        )
+        return JSONResponse(
+            {
+                "access_token": mcp_token,
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "refresh_token": mcp_refresh,
+            }
+        )
 
     return JSONResponse({"error": "unsupported_grant_type"}, status_code=400)

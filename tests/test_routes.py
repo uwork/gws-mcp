@@ -4,16 +4,14 @@ TestClient は Starlette の ASGI テストクライアント。
 外部依存はすべて monkeypatch / mocker で差し替える。
 """
 
-import base64
 import hashlib
+import time
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from conftest import TEST_REDIRECT_URI
+
 from features.oauth import routes as oauth_routes
 from features.oauth.state import create_state, verify_state
-
 
 # ---------------------------------------------------------------------------
 # /.well-known/oauth-protected-resource
@@ -448,7 +446,27 @@ def _make_mcp_code(pkce_pair: dict, user_id: str = "user-abc") -> str:
     return create_state({"user_id": user_id, "code_challenge": pkce_pair["challenge"]})
 
 
-def test_token_auth_code_success_form(client, pkce_pair):
+# /callback が Firestore に保存する Google tokens の想定値
+_FAKE_GOOGLE_TOKENS = {
+    "access_token": "google-access-token",
+    "refresh_token": "google-refresh-token",
+    "expiry": 9_999_999_999,
+    "user_id": "test-user",
+}
+
+
+def _mock_storage_for_auth_code(mocker) -> MagicMock:
+    """authorization_code グラントで呼ばれる load_tokens / save_tokens をモック。
+
+    load_tokens は /callback が保存済みの Google tokens を返すことを再現する。
+    戻り値の MagicMock で save_tokens の呼び出し内容を検証できる。
+    """
+    mocker.patch.object(oauth_routes, "load_tokens", return_value=dict(_FAKE_GOOGLE_TOKENS))
+    return mocker.patch.object(oauth_routes, "save_tokens")
+
+
+def test_token_auth_code_success_form(client, pkce_pair, mocker):
+    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
     r = client.post(
         "/token",
@@ -465,7 +483,8 @@ def test_token_auth_code_success_form(client, pkce_pair):
     assert body["expires_in"] == 3600
 
 
-def test_token_auth_code_token_type_is_bearer(client, pkce_pair):
+def test_token_auth_code_token_type_is_bearer(client, pkce_pair, mocker):
+    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
     body = client.post(
         "/token",
@@ -478,7 +497,8 @@ def test_token_auth_code_token_type_is_bearer(client, pkce_pair):
     assert body["token_type"] == "Bearer"
 
 
-def test_token_auth_code_access_token_contains_user_id(client, pkce_pair):
+def test_token_auth_code_access_token_contains_user_id(client, pkce_pair, mocker):
+    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair, user_id="test-user-999")
     body = client.post(
         "/token",
@@ -491,9 +511,50 @@ def test_token_auth_code_access_token_contains_user_id(client, pkce_pair):
     token_data = verify_state(body["access_token"], max_age=3600)
     assert token_data is not None
     assert token_data["user_id"] == "test-user-999"
+    assert token_data["type"] == "access"
 
 
-def test_token_auth_code_success_json_body(client, pkce_pair):
+def test_token_auth_code_returns_refresh_token(client, pkce_pair, mocker):
+    _mock_storage_for_auth_code(mocker)
+    mcp_code = _make_mcp_code(pkce_pair)
+    body = client.post(
+        "/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": mcp_code,
+            "code_verifier": pkce_pair["verifier"],
+        },
+    ).json()
+    assert "refresh_token" in body
+    refresh_data = verify_state(body["refresh_token"], max_age=60 * 60 * 24 * 30)
+    assert refresh_data is not None
+    assert refresh_data["type"] == "refresh"
+
+
+def test_token_auth_code_saves_fingerprint_preserving_google_tokens(client, pkce_pair, mocker):
+    """fingerprint 保存時に Google tokens が上書きされないことを確認。"""
+
+    mock_save = _mock_storage_for_auth_code(mocker)
+    mcp_code = _make_mcp_code(pkce_pair)
+    body = client.post(
+        "/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": mcp_code,
+            "code_verifier": pkce_pair["verifier"],
+        },
+    ).json()
+    saved = mock_save.call_args[0][1]
+    assert saved["access_token"] == _FAKE_GOOGLE_TOKENS["access_token"]
+    assert saved["refresh_token"] == _FAKE_GOOGLE_TOKENS["refresh_token"]
+    assert (
+        saved["mcp_refresh_fingerprint"]
+        == hashlib.sha256(body["refresh_token"].encode()).hexdigest()
+    )
+
+
+def test_token_auth_code_success_json_body(client, pkce_pair, mocker):
+    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
     r = client.post(
         "/token",
@@ -566,13 +627,24 @@ def test_token_invalid_json_body_returns_400(client):
 
 
 def _make_refresh_token(user_id: str = "user-abc") -> str:
-    import time
 
-    return create_state({"user_id": user_id, "issued_at": time.time()})
+    return create_state({"user_id": user_id, "type": "refresh", "issued_at": time.time()})
 
 
-def test_token_refresh_success(client):
+def _mock_load_tokens_for_refresh(mocker, refresh_token: str, user_id: str = "user-abc") -> dict:
+    """refresh_token に対応する fingerprint を持つ Firestore ドキュメントをモック。"""
+
+    stored = {
+        "user_id": user_id,
+        "mcp_refresh_fingerprint": hashlib.sha256(refresh_token.encode()).hexdigest(),
+    }
+    mocker.patch.object(oauth_routes, "load_tokens", return_value=stored)
+    return stored
+
+
+def test_token_refresh_success(client, mocker):
     refresh = _make_refresh_token()
+    _mock_load_tokens_for_refresh(mocker, refresh)
     r = client.post(
         "/token",
         data={"grant_type": "refresh_token", "refresh_token": refresh},
@@ -583,14 +655,94 @@ def test_token_refresh_success(client):
     assert body["token_type"] == "Bearer"
 
 
-def test_token_refresh_new_token_contains_same_user_id(client):
+def test_token_refresh_new_token_contains_same_user_id(client, mocker):
     refresh = _make_refresh_token(user_id="user-xyz")
+    _mock_load_tokens_for_refresh(mocker, refresh, user_id="user-xyz")
     body = client.post(
         "/token",
         data={"grant_type": "refresh_token", "refresh_token": refresh},
     ).json()
     token_data = verify_state(body["access_token"], max_age=3600)
     assert token_data["user_id"] == "user-xyz"
+    assert token_data["type"] == "access"
+
+
+def test_token_refresh_returns_new_refresh_token(client, mocker):
+    refresh = _make_refresh_token(user_id="user-rotate")
+    _mock_load_tokens_for_refresh(mocker, refresh, user_id="user-rotate")
+    body = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": refresh},
+    ).json()
+    assert "refresh_token" in body
+    new_refresh_data = verify_state(body["refresh_token"], max_age=60 * 60 * 24 * 30)
+    assert new_refresh_data is not None
+    assert new_refresh_data["type"] == "refresh"
+    assert new_refresh_data["user_id"] == "user-rotate"
+
+
+def test_token_refresh_saves_new_fingerprint(client, mocker):
+    """リフレッシュ後に新しい fingerprint が Firestore に保存されることを確認。"""
+
+    refresh = _make_refresh_token()
+    _mock_load_tokens_for_refresh(mocker, refresh)
+    mock_save = mocker.patch.object(oauth_routes, "save_tokens")
+    body = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": refresh},
+    ).json()
+    new_fingerprint = hashlib.sha256(body["refresh_token"].encode()).hexdigest()
+    saved_tokens = mock_save.call_args[0][1]
+    assert saved_tokens["mcp_refresh_fingerprint"] == new_fingerprint
+
+
+def test_token_refresh_rejects_wrong_fingerprint(client, mocker):
+    """fingerprint が一致しない（盗用済みトークン）は invalid_grant を返す。"""
+
+    refresh = _make_refresh_token()
+    mocker.patch.object(
+        oauth_routes,
+        "load_tokens",
+        return_value={"mcp_refresh_fingerprint": hashlib.sha256(b"different-token").hexdigest()},
+    )
+    r = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": refresh},
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_grant"
+
+
+def test_token_refresh_rejects_when_no_firestore_record(client, mocker):
+    """Firestore にレコードがない場合は invalid_grant を返す。"""
+    refresh = _make_refresh_token()
+    mocker.patch.object(oauth_routes, "load_tokens", return_value=None)
+    r = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": refresh},
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_grant"
+
+
+def test_token_refresh_rejects_access_token(client, pkce_pair, mocker):
+    """access_token を refresh_token グラントに使えないことを確認する。"""
+    _mock_storage_for_auth_code(mocker)
+    mcp_code = _make_mcp_code(pkce_pair)
+    body = client.post(
+        "/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": mcp_code,
+            "code_verifier": pkce_pair["verifier"],
+        },
+    ).json()
+    r = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": body["access_token"]},
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_grant"
 
 
 def test_token_refresh_missing_token_returns_400(client):

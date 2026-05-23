@@ -48,7 +48,7 @@ class BearerAuthMiddleware:
                 has_token = True
                 mcp_token = auth[7:]
                 token_data = verify_state(mcp_token, max_age=3600)
-                if token_data and "user_id" in token_data:
+                if token_data and "user_id" in token_data and token_data.get("type") == "access":
                     set_user_id(token_data["user_id"])
                     authenticated = True
                 else:

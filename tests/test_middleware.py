@@ -39,7 +39,7 @@ class _BearerAuthMiddleware:
                 has_token = True
                 mcp_token = auth[7:]
                 token_data = verify_state(mcp_token, max_age=3600)
-                if token_data and "user_id" in token_data:
+                if token_data and "user_id" in token_data and token_data.get("type") == "access":
                     set_user_id(token_data["user_id"])
                     authenticated = True
                 else:
@@ -83,7 +83,7 @@ def _make_middleware_client() -> TestClient:
 
 
 def _make_valid_token(user_id: str = "test-user-123") -> str:
-    return create_state({"user_id": user_id, "issued_at": time.time()})
+    return create_state({"user_id": user_id, "type": "access", "issued_at": time.time()})
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +157,15 @@ def test_invalid_token_www_authenticate_has_error():
     www_auth = resp.headers["WWW-Authenticate"]
     assert 'error="invalid_token"' in www_auth
     assert "resource_metadata=" in www_auth
+
+
+def test_refresh_token_rejected_as_bearer():
+    """type=refresh のトークンを Bearer として使えないことを確認する。"""
+    token = create_state({"user_id": "user-abc", "type": "refresh", "issued_at": time.time()})
+    client = _make_middleware_client()
+    resp = client.get("/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+    assert resp.json()["error"] == "invalid_token"
 
 
 def test_www_authenticate_contains_resource_metadata_url():
