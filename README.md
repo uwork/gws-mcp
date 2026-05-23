@@ -83,19 +83,26 @@ make tf-init
 make tf-apply   # Secret Manager へのシークレット初期投入も行われる
 ```
 
-既存の手動作成シークレット（旧名 `mcp-google-client-id` 等）がある場合は
-事前に `terraform import` が必要:
+既存の手動作成シークレットがある場合は事前に `terraform import` が必要:
 
 ```bash
 terraform -chdir=terraform import \
   google_secret_manager_secret.google_client_id \
   projects/YOUR_PROJECT_ID/secrets/gws-mcp-google-client-id
+
+terraform -chdir=terraform import \
+  google_secret_manager_secret.google_client_secret \
+  projects/YOUR_PROJECT_ID/secrets/gws-mcp-google-client-secret
+
+terraform -chdir=terraform import \
+  google_secret_manager_secret.state_secret_key \
+  projects/YOUR_PROJECT_ID/secrets/gws-mcp-state-secret-key
 ```
 
 > **リネームについて**: v0.x 以前で手動作成した `mcp-state-secret-key` は
 > `gws-mcp-state-secret-key` にリネームされた。旧シークレットの値を新名で再登録すること。
 
-### 5. デプロイ
+### 4. デプロイ
 
 ```bash
 make deploy
