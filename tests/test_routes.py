@@ -4,6 +4,8 @@ TestClient は Starlette の ASGI テストクライアント。
 外部依存はすべて monkeypatch / mocker で差し替える。
 """
 
+import hashlib
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 from conftest import TEST_REDIRECT_URI
@@ -531,7 +533,6 @@ def test_token_auth_code_returns_refresh_token(client, pkce_pair, mocker):
 
 def test_token_auth_code_saves_fingerprint_preserving_google_tokens(client, pkce_pair, mocker):
     """fingerprint 保存時に Google tokens が上書きされないことを確認。"""
-    import hashlib
 
     mock_save = _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
@@ -626,14 +627,12 @@ def test_token_invalid_json_body_returns_400(client):
 
 
 def _make_refresh_token(user_id: str = "user-abc") -> str:
-    import time
 
     return create_state({"user_id": user_id, "type": "refresh", "issued_at": time.time()})
 
 
 def _mock_load_tokens_for_refresh(mocker, refresh_token: str, user_id: str = "user-abc") -> dict:
     """refresh_token に対応する fingerprint を持つ Firestore ドキュメントをモック。"""
-    import hashlib
 
     stored = {
         "user_id": user_id,
@@ -684,7 +683,6 @@ def test_token_refresh_returns_new_refresh_token(client, mocker):
 
 def test_token_refresh_saves_new_fingerprint(client, mocker):
     """リフレッシュ後に新しい fingerprint が Firestore に保存されることを確認。"""
-    import hashlib
 
     refresh = _make_refresh_token()
     _mock_load_tokens_for_refresh(mocker, refresh)
@@ -700,7 +698,6 @@ def test_token_refresh_saves_new_fingerprint(client, mocker):
 
 def test_token_refresh_rejects_wrong_fingerprint(client, mocker):
     """fingerprint が一致しない（盗用済みトークン）は invalid_grant を返す。"""
-    import hashlib
 
     refresh = _make_refresh_token()
     mocker.patch.object(
