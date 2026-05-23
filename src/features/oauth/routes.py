@@ -238,8 +238,10 @@ async def token(request: Request) -> JSONResponse:
             )
 
         user_id = code_data["user_id"]
-        mcp_token = create_state({"user_id": user_id, "issued_at": time.time()})
-        mcp_refresh = create_state({"user_id": user_id, "issued_at": time.time()})
+        mcp_token = create_state({"user_id": user_id, "type": "access", "issued_at": time.time()})
+        mcp_refresh = create_state(
+            {"user_id": user_id, "type": "refresh", "issued_at": time.time()}
+        )
         return JSONResponse(
             {
                 "access_token": mcp_token,
@@ -254,11 +256,13 @@ async def token(request: Request) -> JSONResponse:
         if not refresh:
             return JSONResponse({"error": "invalid_request"}, status_code=400)
         token_data = verify_state(refresh, max_age=60 * 60 * 24 * 30)  # 30日
-        if token_data is None:
+        if token_data is None or token_data.get("type") != "refresh":
             return JSONResponse({"error": "invalid_grant"}, status_code=400)
         user_id = token_data["user_id"]
-        mcp_token = create_state({"user_id": user_id, "issued_at": time.time()})
-        mcp_refresh = create_state({"user_id": user_id, "issued_at": time.time()})
+        mcp_token = create_state({"user_id": user_id, "type": "access", "issued_at": time.time()})
+        mcp_refresh = create_state(
+            {"user_id": user_id, "type": "refresh", "issued_at": time.time()}
+        )
         return JSONResponse(
             {
                 "access_token": mcp_token,

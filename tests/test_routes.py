@@ -4,16 +4,12 @@ TestClient は Starlette の ASGI テストクライアント。
 外部依存はすべて monkeypatch / mocker で差し替える。
 """
 
-import base64
-import hashlib
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from conftest import TEST_REDIRECT_URI
+
 from features.oauth import routes as oauth_routes
 from features.oauth.state import create_state, verify_state
-
 
 # ---------------------------------------------------------------------------
 # /.well-known/oauth-protected-resource
@@ -491,6 +487,23 @@ def test_token_auth_code_access_token_contains_user_id(client, pkce_pair):
     token_data = verify_state(body["access_token"], max_age=3600)
     assert token_data is not None
     assert token_data["user_id"] == "test-user-999"
+    assert token_data["type"] == "access"
+
+
+def test_token_auth_code_returns_refresh_token(client, pkce_pair):
+    mcp_code = _make_mcp_code(pkce_pair)
+    body = client.post(
+        "/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": mcp_code,
+            "code_verifier": pkce_pair["verifier"],
+        },
+    ).json()
+    assert "refresh_token" in body
+    refresh_data = verify_state(body["refresh_token"], max_age=60 * 60 * 24 * 30)
+    assert refresh_data is not None
+    assert refresh_data["type"] == "refresh"
 
 
 def test_token_auth_code_success_json_body(client, pkce_pair):
@@ -568,7 +581,7 @@ def test_token_invalid_json_body_returns_400(client):
 def _make_refresh_token(user_id: str = "user-abc") -> str:
     import time
 
-    return create_state({"user_id": user_id, "issued_at": time.time()})
+    return create_state({"user_id": user_id, "type": "refresh", "issued_at": time.time()})
 
 
 def test_token_refresh_success(client):
@@ -591,6 +604,39 @@ def test_token_refresh_new_token_contains_same_user_id(client):
     ).json()
     token_data = verify_state(body["access_token"], max_age=3600)
     assert token_data["user_id"] == "user-xyz"
+    assert token_data["type"] == "access"
+
+
+def test_token_refresh_returns_new_refresh_token(client):
+    refresh = _make_refresh_token(user_id="user-rotate")
+    body = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": refresh},
+    ).json()
+    assert "refresh_token" in body
+    new_refresh_data = verify_state(body["refresh_token"], max_age=60 * 60 * 24 * 30)
+    assert new_refresh_data is not None
+    assert new_refresh_data["type"] == "refresh"
+    assert new_refresh_data["user_id"] == "user-rotate"
+
+
+def test_token_refresh_rejects_access_token(client, pkce_pair):
+    """access_token を refresh_token グラントに使えないことを確認する。"""
+    mcp_code = _make_mcp_code(pkce_pair)
+    body = client.post(
+        "/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": mcp_code,
+            "code_verifier": pkce_pair["verifier"],
+        },
+    ).json()
+    r = client.post(
+        "/token",
+        data={"grant_type": "refresh_token", "refresh_token": body["access_token"]},
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_grant"
 
 
 def test_token_refresh_missing_token_returns_400(client):

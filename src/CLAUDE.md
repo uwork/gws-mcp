@@ -40,6 +40,8 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 - `/authorize` — PKCE (S256) 付き認可リクエスト受付 → Google 認可画面にリダイレクト
 - `/token` — 認可コード → MCP Bearer トークン交換（PKCE 検証）、リフレッシュトークンによる再発行にも対応
 - MCP Bearer トークンは `itsdangerous.URLSafeTimedSerializer` で生成・検証（有効期限 1 時間）
+- トークンペイロードには `type` フィールドを含む（`"access"` / `"refresh"`）。`BearerAuthMiddleware` は `type == "access"` のみ受け付け、`/token` の `refresh_token` グラントは `type == "refresh"` のみ受け付ける（用途混用を防ぐ）
+- リフレッシュトークンは有効期限 30 日。使用のたびに新しいトークンを発行するローテーション方式
 
 **Layer 2: Google 認証**（`features/oauth/google.py`）
 - Google OAuth 認可コードをアクセストークン・リフレッシュトークンと交換
