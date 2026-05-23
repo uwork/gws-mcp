@@ -3,11 +3,15 @@ export
 
 # .env の変数を Terraform 変数にマッピング
 # SERVICE_HOST にカスタムドメインを設定するだけで Terraform・アプリ双方に反映される
-TF_VAR_project_id   := $(PROJECT_ID)
-TF_VAR_region       := $(REGION)
-TF_VAR_service_name := $(SERVICE)
-TF_VAR_service_host := $(SERVICE_HOST)
+TF_VAR_project_id          := $(PROJECT_ID)
+TF_VAR_region              := $(REGION)
+TF_VAR_service_name        := $(SERVICE)
+TF_VAR_service_host        := $(SERVICE_HOST)
+TF_VAR_google_client_id     := $(GOOGLE_CLIENT_ID)
+TF_VAR_google_client_secret := $(GOOGLE_CLIENT_SECRET)
+TF_VAR_state_secret_key     := $(STATE_SECRET_KEY)
 export TF_VAR_project_id TF_VAR_region TF_VAR_service_name TF_VAR_service_host
+export TF_VAR_google_client_id TF_VAR_google_client_secret TF_VAR_state_secret_key
 
 TF_DIR := terraform
 

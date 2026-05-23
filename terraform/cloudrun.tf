@@ -75,7 +75,7 @@ resource "google_cloud_run_v2_service" "gws_mcp" {
         name = "STATE_SECRET_KEY"
         value_source {
           secret_key_ref {
-            secret  = "mcp-state-secret-key"
+            secret  = google_secret_manager_secret.state_secret_key.secret_id
             version = "latest"
           }
         }
