@@ -1,4 +1,0 @@
-# このファイルをコピーして backend.conf を作成する
-# terraform init -backend-config=backend.conf
-
-bucket = "example-gws-mcp-tfstate"

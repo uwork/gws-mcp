@@ -82,9 +82,8 @@ cp .env.example .env
 ### 4. Terraform で Firestore / Secret Manager API と権限を有効化
 
 ```bash
-cd terraform
-terraform init -backend-config=backend.conf
-terraform apply
+make tf-init
+make tf-apply
 ```
 
 ### 5. デプロイ

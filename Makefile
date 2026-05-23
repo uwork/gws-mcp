@@ -21,7 +21,8 @@ deploy:
 		--source=.
 
 tf-init:
-	cd $(TF_DIR) && terraform init -backend-config=backend.conf
+	@test -n "$(TFSTATE_BUCKET)" || (echo "ERROR: TFSTATE_BUCKET is not set in .env"; exit 1)
+	cd $(TF_DIR) && terraform init -backend-config="bucket=$(TFSTATE_BUCKET)"
 
 tf-plan:
 	cd $(TF_DIR) && terraform plan
