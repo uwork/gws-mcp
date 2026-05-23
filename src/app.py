@@ -43,7 +43,9 @@ class BearerAuthMiddleware:
             headers = dict(scope.get("headers", []))
             auth: str = headers.get(b"authorization", b"").decode()
             authenticated = False
+            has_token = False
             if auth.startswith("Bearer "):
+                has_token = True
                 mcp_token = auth[7:]
                 token_data = verify_state(mcp_token, max_age=3600)
                 if token_data and "user_id" in token_data:
@@ -54,10 +56,20 @@ class BearerAuthMiddleware:
 
             if not authenticated:
                 host = SERVICE_HOST or headers.get(b"host", b"").decode()
+                if not host:
+                    logger.warning(
+                        "BearerAuthMiddleware: cannot determine host for WWW-Authenticate"
+                    )
                 resource_metadata_url = f"https://{host}/.well-known/oauth-protected-resource"
-                www_auth = f'Bearer realm="{host}", resource_metadata="{resource_metadata_url}"'
+                # RFC 6750 §3.1: error 属性はトークンが存在したが無効な場合のみ付与する
+                error_part = ', error="invalid_token"' if has_token else ""
+                www_auth = (
+                    f'Bearer realm="gws-mcp", resource_metadata="{resource_metadata_url}"'
+                    f"{error_part}"
+                )
+                body = b'{"error":"invalid_token"}' if has_token else b'{"error":"unauthorized"}'
                 response = Response(
-                    content=b'{"error":"unauthorized"}',
+                    content=body,
                     status_code=401,
                     headers={
                         "WWW-Authenticate": www_auth,
