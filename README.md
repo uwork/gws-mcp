@@ -22,6 +22,9 @@ Google Sheets MCP Server — Claude.ai のカスタムコネクタとして Goog
 # または手動セットアップ
 uv sync
 PORT=8080 uv run python src/main.py
+
+# テスト実行
+uv run pytest
 ```
 
 ### Cloud Run デプロイ
