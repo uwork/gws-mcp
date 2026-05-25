@@ -48,6 +48,10 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 - Google OAuth 認可コードをアクセストークン・リフレッシュトークンと交換
 - `access_token / refresh_token / expiry / user_id` を Firestore に保存
 - アクセストークンの有効期限 60 秒前にリフレッシュトークンで自動更新
+- 要求スコープ: `openid email spreadsheets presentations drive`
+  - `spreadsheets` — Google Sheets 読み書き
+  - `presentations` — Google Slides 読み書き
+  - `drive` — エクスポート・コメント読み書き（Drive API）
 
 ## リクエストフロー（MCP ツール呼び出し時）
 
@@ -82,6 +86,14 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 | `sheets_clear_values` | `sheets.py` | 範囲のセル値クリア |
 | `sheets_batch_update` | `sheets.py` | 構造・書式の一括更新（spreadsheets.batchUpdate） |
 | `sheets_batch_update_help` | `sheets.py` | `sheets_batch_update` の request 種別リファレンス |
+| `slides_get_presentation` | `slides.py` | プレゼンテーション概要・スライド一覧取得 |
+| `slides_get_page` | `slides.py` | 特定スライドの全要素詳細取得 |
+| `slides_batch_update` | `slides.py` | スライドの一括更新（presentations.batchUpdate） |
+| `slides_batch_update_help` | `slides.py` | `slides_batch_update` の request 種別リファレンス |
+| `slides_export` | `slides.py` | PDF / PPTX / テキスト形式でエクスポート（Drive API） |
+| `slides_get_thumbnail` | `slides.py` | スライドのサムネイル URL 取得 |
+| `slides_list_comments` | `slides.py` | コメント一覧取得（Drive API） |
+| `slides_add_comment` | `slides.py` | コメント追加（Drive API） |
 
 ツールのレスポンスは Google API の camelCase / ネスト構造を整形した snake_case のフラット dict。  
 2D 配列に 2 行以上あれば `headers` / `records` キーも追加する（AI が扱いやすい形式）。

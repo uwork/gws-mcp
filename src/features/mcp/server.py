@@ -9,5 +9,6 @@ def ping() -> str:
     return "pong"
 
 
-# Sheets ツールを登録（インポートにより @mcp.tool() デコレータが実行される）
+# 各サービスのツールを登録（インポートにより @mcp.tool() デコレータが実行される）
 import features.mcp.sheets  # noqa: E402, F401
+import features.mcp.slides  # noqa: E402, F401

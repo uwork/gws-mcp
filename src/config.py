@@ -46,7 +46,8 @@ GOOGLE_SCOPES = (
     "openid "
     "email "
     "https://www.googleapis.com/auth/spreadsheets "
-    "https://www.googleapis.com/auth/drive.readonly"
+    "https://www.googleapis.com/auth/presentations "
+    "https://www.googleapis.com/auth/drive"
 )
 
 # 許可する Google ログインドメイン。カンマまたは改行区切り。未設定の場合は制限なし。
