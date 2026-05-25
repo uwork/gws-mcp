@@ -731,6 +731,9 @@ def slides_batch_update_help() -> dict:
     }
 
 
+_EXPORT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
 @mcp.tool()
 async def slides_export(
     presentation_id: str,
@@ -750,7 +753,7 @@ async def slides_export(
         バイナリの場合: { mime_type, content_base64, size_bytes }
 
     Note:
-        大きなプレゼンテーションの PDF/PPTX エクスポートはサイズが大きくなる場合がある。
+        10 MB を超えるエクスポートはエラーになる。
         スライド画像が必要な場合は slides_get_thumbnail を使用する。
     """
     token = await _get_token()
@@ -765,6 +768,12 @@ async def slides_export(
         content = resp.content
 
     size_bytes = len(content)
+    if size_bytes > _EXPORT_MAX_BYTES:
+        raise ValueError(
+            f"エクスポートサイズが上限 ({_EXPORT_MAX_BYTES // (1024 * 1024)} MB) を超えています"
+            f" ({size_bytes / (1024 * 1024):.1f} MB)。"
+            " text/plain を使用するか slides_get_thumbnail で個別ページを取得してください。"
+        )
 
     if mime_type == "text/plain":
         return {
