@@ -12,9 +12,11 @@ src/
 ├── features/
 │   ├── mcp/
 │   │   ├── instance.py        # FastMCP インスタンス（単一 mcp オブジェクト）
-│   │   ├── server.py          # ping ツール定義・sheets モジュール登録
+│   │   ├── server.py          # ping ツール定義・sheets / slides / docs モジュール登録
 │   │   ├── auth.py            # ContextVar による user_id 管理
-│   │   └── sheets.py          # Google Sheets MCP ツール定義
+│   │   ├── sheets.py          # Google Sheets MCP ツール定義
+│   │   ├── slides.py          # Google Slides MCP ツール定義
+│   │   └── docs.py            # Google Docs MCP ツール定義
 │   └── oauth/
 │       ├── routes.py          # OAuth HTTP エンドポイント
 │       ├── google.py          # Google OAuth ヘルパー
@@ -48,9 +50,10 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 - Google OAuth 認可コードをアクセストークン・リフレッシュトークンと交換
 - `access_token / refresh_token / expiry / user_id` を Firestore に保存
 - アクセストークンの有効期限 60 秒前にリフレッシュトークンで自動更新
-- 要求スコープ: `openid email spreadsheets presentations drive`
+- 要求スコープ: `openid email spreadsheets presentations documents drive`
   - `spreadsheets` — Google Sheets 読み書き
   - `presentations` — Google Slides 読み書き
+  - `documents` — Google Docs 読み書き
   - `drive` — エクスポート・コメント読み書き（Drive API）
 
 ## リクエストフロー（MCP ツール呼び出し時）
@@ -94,6 +97,13 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 | `slides_get_thumbnail` | `slides.py` | スライドのサムネイル URL 取得 |
 | `slides_list_comments` | `slides.py` | コメント一覧取得（Drive API） |
 | `slides_add_comment` | `slides.py` | コメント追加（Drive API） |
+| `docs_get_document` | `docs.py` | ドキュメントのコンテンツとメタデータ取得 |
+| `docs_create_document` | `docs.py` | 新規ドキュメント作成 |
+| `docs_batch_update` | `docs.py` | ドキュメントの一括更新（documents.batchUpdate） |
+| `docs_batch_update_help` | `docs.py` | `docs_batch_update` の request 種別リファレンス |
+| `docs_export` | `docs.py` | PDF / DOCX / テキスト / HTML 形式でエクスポート（Drive API） |
+| `docs_list_comments` | `docs.py` | コメント一覧取得（Drive API） |
+| `docs_add_comment` | `docs.py` | コメント追加（Drive API） |
 
 ツールのレスポンスは Google API の camelCase / ネスト構造を整形した snake_case のフラット dict。  
 2D 配列に 2 行以上あれば `headers` / `records` キーも追加する（AI が扱いやすい形式）。
