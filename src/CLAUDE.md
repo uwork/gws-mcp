@@ -89,6 +89,7 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 | `sheets_clear_values` | `sheets.py` | 範囲のセル値クリア |
 | `sheets_batch_update` | `sheets.py` | 構造・書式の一括更新（spreadsheets.batchUpdate） |
 | `sheets_batch_update_help` | `sheets.py` | `sheets_batch_update` の request 種別リファレンス |
+| `slides_create_presentation` | `slides.py` | 新規プレゼンテーション作成 |
 | `slides_get_presentation` | `slides.py` | プレゼンテーション概要・スライド一覧取得 |
 | `slides_get_page` | `slides.py` | 特定スライドの全要素詳細取得 |
 | `slides_batch_update` | `slides.py` | スライドの一括更新（presentations.batchUpdate） |
