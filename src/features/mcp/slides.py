@@ -326,6 +326,28 @@ def _format_comment(c: dict) -> dict[str, Any]:
 
 
 @mcp.tool()
+async def slides_create_presentation(title: str) -> dict:
+    """新しい Google スライドプレゼンテーションを作成する。
+
+    Args:
+        title: プレゼンテーションのタイトル
+
+    Returns:
+        {
+            presentation_id, title, locale, revision_id,
+            page_size: { width: {magnitude, unit}, height: {magnitude, unit} },
+            slide_count,
+            slides: [...]   # 空リスト（新規作成）
+        }
+
+    Note:
+        作成後に slides_batch_update でスライドやコンテンツを追加できる。
+    """
+    raw = await _slides_post("", {"title": title})
+    return _format_presentation_summary(raw)
+
+
+@mcp.tool()
 async def slides_get_presentation(presentation_id: str) -> dict:
     """プレゼンテーションの概要を取得する（スライド一覧・テキストサマリ）。
 
