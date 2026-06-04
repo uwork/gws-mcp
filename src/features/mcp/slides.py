@@ -50,7 +50,16 @@ async def _slides_get(path: str, params: dict | None = None) -> dict:
             params=params or {},
             timeout=30,
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text
+            raise httpx.HTTPStatusError(
+                f"{resp.status_code} {resp.reason_phrase}: {detail}",
+                request=resp.request,
+                response=resp,
+            )
         return resp.json()
 
 
@@ -63,7 +72,16 @@ async def _slides_post(path: str, body: dict) -> dict:
             json=body,
             timeout=30,
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text
+            raise httpx.HTTPStatusError(
+                f"{resp.status_code} {resp.reason_phrase}: {detail}",
+                request=resp.request,
+                response=resp,
+            )
         return resp.json()
 
 
@@ -76,20 +94,39 @@ async def _drive_get_json(path: str, params: dict | None = None) -> dict:
             params=params or {},
             timeout=30,
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text
+            raise httpx.HTTPStatusError(
+                f"{resp.status_code} {resp.reason_phrase}: {detail}",
+                request=resp.request,
+                response=resp,
+            )
         return resp.json()
 
 
-async def _drive_post(path: str, body: dict) -> dict:
+async def _drive_post(path: str, body: dict, params: dict | None = None) -> dict:
     token = await _get_token()
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_DRIVE_BASE}{path}",
             headers={**_auth_headers(token), "Content-Type": "application/json"},
             json=body,
+            params=params or {},
             timeout=30,
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text
+            raise httpx.HTTPStatusError(
+                f"{resp.status_code} {resp.reason_phrase}: {detail}",
+                request=resp.request,
+                response=resp,
+            )
         return resp.json()
 
 
@@ -895,5 +932,6 @@ async def slides_add_comment(
     raw = await _drive_post(
         f"/files/{presentation_id}/comments",
         {"content": content},
+        params={"fields": "*"},
     )
     return _format_comment(raw)

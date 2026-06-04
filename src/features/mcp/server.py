@@ -10,5 +10,6 @@ def ping() -> str:
 
 
 # 各サービスのツールを登録（インポートにより @mcp.tool() デコレータが実行される）
+import features.mcp.docs  # noqa: E402, F401
 import features.mcp.sheets  # noqa: E402, F401
 import features.mcp.slides  # noqa: E402, F401
