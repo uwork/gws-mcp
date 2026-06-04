@@ -61,6 +61,11 @@ resource "google_project_service" "slides" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "docs" {
+  service            = "docs.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_project_service" "drive" {
   service            = "drive.googleapis.com"
   disable_on_destroy = false
