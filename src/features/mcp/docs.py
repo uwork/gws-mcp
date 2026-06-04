@@ -222,13 +222,17 @@ def _format_document(raw: dict, include_elements: bool = True) -> dict[str, Any]
             }
         )
 
+    formatted_count = len(elements)
+    if not include_elements:
+        formatted_count = sum(1 for e in body_content if _format_structural_element(e) is not None)
+
     result: dict[str, Any] = {
         "document_id": raw.get("documentId", ""),
         "title": raw.get("title", ""),
         "revision_id": raw.get("revisionId", ""),
         "locale": raw.get("locale", ""),
         "plain_text": "".join(plain_text_parts),
-        "element_count": len(elements) if include_elements else len(body_content),
+        "element_count": formatted_count,
     }
     if include_elements:
         result["elements"] = elements
@@ -237,11 +241,9 @@ def _format_document(raw: dict, include_elements: bool = True) -> dict[str, Any]
     named_ranges = raw.get("namedRanges", {})
     if named_ranges:
         result["named_ranges"] = [
-            {
-                "name": name,
-                "named_range_id": nr_list[0].get("namedRangeId", "") if nr_list else "",
-            }
+            {"name": name, "named_range_id": nr.get("namedRangeId", "")}
             for name, nr_list in named_ranges.items()
+            for nr in nr_list
         ]
     return result
 
@@ -645,7 +647,16 @@ async def docs_export(
             params={"mimeType": mime_type},
             timeout=120,
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text
+            raise httpx.HTTPStatusError(
+                f"{resp.status_code} {resp.reason_phrase}: {detail}",
+                request=resp.request,
+                response=resp,
+            )
         content = resp.content
 
     size_bytes = len(content)
