@@ -98,7 +98,7 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 | `slides_get_thumbnail` | `slides.py` | スライドのサムネイル URL 取得 |
 | `slides_list_comments` | `slides.py` | コメント一覧取得（Drive API） |
 | `slides_add_comment` | `slides.py` | コメント追加（Drive API） |
-| `docs_get_document` | `docs.py` | ドキュメントのコンテンツとメタデータ取得 |
+| `docs_get_document` | `docs.py` | ドキュメントのコンテンツとメタデータ取得（タブ対応） |
 | `docs_create_document` | `docs.py` | 新規ドキュメント作成 |
 | `docs_batch_update` | `docs.py` | ドキュメントの一括更新（documents.batchUpdate） |
 | `docs_batch_update_help` | `docs.py` | `docs_batch_update` の request 種別リファレンス |
