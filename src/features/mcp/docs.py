@@ -194,9 +194,10 @@ def _format_structural_element(elem: dict) -> dict[str, Any] | None:
     return None
 
 
-def _format_document(raw: dict, include_elements: bool = True) -> dict[str, Any]:
-    """Google Docs Document を AI フレンドリーな dict に変換する。"""
-    body_content = raw.get("body", {}).get("content", [])
+def _format_tab(tab: dict, include_elements: bool) -> dict[str, Any]:
+    """単一 Tab オブジェクトを AI フレンドリーな dict に変換する。"""
+    props = tab.get("tabProperties", {})
+    body_content = tab.get("documentTab", {}).get("body", {}).get("content", [])
     elements: list[dict[str, Any]] = []
     plain_text_parts: list[str] = []
 
@@ -210,6 +211,87 @@ def _format_document(raw: dict, include_elements: bool = True) -> dict[str, Any]
         if include_elements:
             elements.append(formatted)
 
+    if include_elements:
+        element_count = len(elements)
+    else:
+        element_count = sum(1 for e in body_content if _format_structural_element(e) is not None)
+
+    result: dict[str, Any] = {
+        "tab_id": props.get("tabId", ""),
+        "title": props.get("title", ""),
+        "index": props.get("index", 0),
+        "tab_depth": props.get("tabDepth", 0),
+        "plain_text": "".join(plain_text_parts),
+        "element_count": element_count,
+    }
+    if include_elements:
+        result["elements"] = elements
+    parent_tab_id = props.get("parentTabId")
+    if parent_tab_id:
+        result["parent_tab_id"] = parent_tab_id
+    child_tabs = _collect_tabs_recursive(tab.get("childTabs", []), include_elements)
+    if child_tabs:
+        result["child_tabs"] = child_tabs
+    return result
+
+
+def _collect_tabs_recursive(tabs: list[dict], include_elements: bool) -> list[dict[str, Any]]:
+    """Tab リストを再帰的にフォーマットする（ネストされた childTabs も含む）。"""
+    return [_format_tab(t, include_elements) for t in tabs]
+
+
+def _format_document(
+    raw: dict, include_elements: bool = True, include_tabs: bool = True
+) -> dict[str, Any]:
+    """Google Docs Document を AI フレンドリーな dict に変換する。"""
+    raw_tabs = raw.get("tabs", []) if include_tabs else []
+
+    if raw_tabs:
+        tabs_formatted = _collect_tabs_recursive(raw_tabs, include_elements)
+        plain_text = "\n".join(t["plain_text"] for t in tabs_formatted if t["plain_text"])
+        element_count = sum(t["element_count"] for t in tabs_formatted)
+        result: dict[str, Any] = {
+            "document_id": raw.get("documentId", ""),
+            "title": raw.get("title", ""),
+            "revision_id": raw.get("revisionId", ""),
+            "locale": raw.get("locale", ""),
+            "plain_text": plain_text,
+            "element_count": element_count,
+            "tab_count": len(tabs_formatted),
+            "tabs": tabs_formatted,
+        }
+    else:
+        body_content = raw.get("body", {}).get("content", [])
+        elements: list[dict[str, Any]] = []
+        plain_text_parts: list[str] = []
+
+        for struct_elem in body_content:
+            formatted = _format_structural_element(struct_elem)
+            if formatted is None:
+                continue
+            t = formatted.get("text", "")
+            if t:
+                plain_text_parts.append(t)
+            if include_elements:
+                elements.append(formatted)
+
+        formatted_count = (
+            len(elements)
+            if include_elements
+            else sum(1 for e in body_content if _format_structural_element(e) is not None)
+        )
+
+        result = {
+            "document_id": raw.get("documentId", ""),
+            "title": raw.get("title", ""),
+            "revision_id": raw.get("revisionId", ""),
+            "locale": raw.get("locale", ""),
+            "plain_text": "".join(plain_text_parts),
+            "element_count": formatted_count,
+        }
+        if include_elements:
+            result["elements"] = elements
+
     inline_objects = raw.get("inlineObjects", {})
     inline_obj_list: list[dict[str, Any]] = []
     for obj_id, obj in inline_objects.items():
@@ -221,23 +303,9 @@ def _format_document(raw: dict, include_elements: bool = True) -> dict[str, Any]
                 "description": props.get("description", ""),
             }
         )
-
-    formatted_count = len(elements)
-    if not include_elements:
-        formatted_count = sum(1 for e in body_content if _format_structural_element(e) is not None)
-
-    result: dict[str, Any] = {
-        "document_id": raw.get("documentId", ""),
-        "title": raw.get("title", ""),
-        "revision_id": raw.get("revisionId", ""),
-        "locale": raw.get("locale", ""),
-        "plain_text": "".join(plain_text_parts),
-        "element_count": formatted_count,
-    }
-    if include_elements:
-        result["elements"] = elements
     if inline_obj_list:
         result["inline_objects"] = inline_obj_list
+
     named_ranges = raw.get("namedRanges", {})
     if named_ranges:
         result["named_ranges"] = [
@@ -287,6 +355,7 @@ def _format_comment(c: dict) -> dict[str, Any]:
 async def docs_get_document(
     document_id: str,
     include_elements: bool = True,
+    include_tabs: bool = True,
 ) -> dict:
     """ドキュメントのコンテンツとメタデータを取得する。
 
@@ -294,13 +363,38 @@ async def docs_get_document(
         document_id: ドキュメント ID（URL の /d/<ID>/ 部分）
         include_elements: True（デフォルト）の場合、段落・表などの構造要素を含む。
             ドキュメントが非常に大きい場合は False にしてプレーンテキストのみ取得する。
+        include_tabs: True（デフォルト）の場合、タブ構造を含む（includeTabsContent=true）。
+            タブがある場合は tabs フィールドにタブごとのコンテンツが入る。
+            False にすると旧来の elements 形式（先頭タブのみ）を返す。
 
     Returns:
+        タブあり（include_tabs=True）の場合:
+        {
+            document_id, title, revision_id, locale,
+            plain_text,        # 全タブのテキストを結合したもの
+            element_count,     # 全タブの合計要素数
+            tab_count,         # トップレベルのタブ数
+            tabs: [{
+                tab_id, title, index, tab_depth,
+                parent_tab_id?,  # ネストされたタブの場合のみ
+                plain_text,      # このタブのテキスト
+                element_count,   # このタブの要素数
+                elements?: [{    # include_elements=True の場合
+                    type, style?, text?, list_id?, nesting_level?,
+                    rows?, columns?, cell_values?
+                }, ...],
+                child_tabs?,     # ネストされた子タブがある場合のみ
+            }, ...],
+            inline_objects?: [{ object_id, title, description }],
+            named_ranges?: [{ name, named_range_id }]
+        }
+
+        タブなし（include_tabs=False またはタブ未使用ドキュメント）の場合:
         {
             document_id, title, revision_id, locale,
             plain_text,        # ドキュメント全体のプレーンテキスト
             element_count,
-            elements: [{       # include_elements=True の場合
+            elements?: [{      # include_elements=True の場合
                 type,          # "paragraph" | "table" | "section_break" | "table_of_contents"
                 style?,        # 段落: "NORMAL_TEXT" | "HEADING_1"～"HEADING_6" | "TITLE" etc.
                 text?,         # 段落のテキスト
@@ -314,8 +408,9 @@ async def docs_get_document(
             named_ranges?: [{ name, named_range_id }]
         }
     """
-    raw = await _docs_get(f"/{document_id}")
-    return _format_document(raw, include_elements)
+    params = {"includeTabsContent": "true"} if include_tabs else {}
+    raw = await _docs_get(f"/{document_id}", params=params or None)
+    return _format_document(raw, include_elements, include_tabs)
 
 
 @mcp.tool()
@@ -337,7 +432,7 @@ async def docs_create_document(title: str) -> dict:
         ドライブの特定フォルダへの配置は Drive API で対応（このツール非対応）。
     """
     raw = await _docs_post("", {"title": title})
-    return _format_document(raw, include_elements=False)
+    return _format_document(raw, include_elements=False, include_tabs=False)
 
 
 @mcp.tool()
@@ -388,6 +483,10 @@ def docs_batch_update_help() -> dict:
                 "index は文書内の文字位置（1 始まり）。各段落末尾の \\n も 1 文字としてカウントする"
             ),
             "segmentId": '"" で本文を指す（ヘッダー・フッターは別 ID）',
+            "tabId": (
+                "location / range に tabId を指定すると特定タブを対象にする。"
+                "省略時は先頭タブ。tabId は docs_get_document の tabs[].tab_id で確認する"
+            ),
             "range": "{ startIndex: int, endIndex: int } で範囲指定",
             "index_tip": (
                 "docs_get_document の plain_text でテキスト位置を推定できる。"
@@ -600,6 +699,26 @@ def docs_batch_update_help() -> dict:
                 "example": {"deletePositionedObject": {"objectId": "<object_id>"}},
             },
         },
+        "tab_operations": {
+            "createTab": {
+                "desc": "新しいタブを作成する",
+                "example": {"createTab": {"tabProperties": {"title": "新しいタブ"}}},
+            },
+            "deleteTab": {
+                "desc": "タブとその子タブをすべて削除する",
+                "example": {"deleteTab": {"tabId": "<tab_id>"}},
+            },
+            "updateTab": {
+                "desc": "タブのプロパティ（タイトルなど）を更新する",
+                "fields": "tabProperties.title | tabProperties.index",
+                "example": {
+                    "updateTab": {
+                        "tab": {"tabProperties": {"title": "新しいタイトル"}},
+                        "updateMask": "tabProperties.title",
+                    }
+                },
+            },
+        },
         "location_guide": {
             "desc": "index の調べ方",
             "method": (
@@ -609,7 +728,9 @@ def docs_batch_update_help() -> dict:
             "note": (
                 "ドキュメント全体の index は 1 始まり。"
                 "各段落末尾の \\n も 1 文字としてカウントする。"
-                "新規ドキュメントへの先頭挿入は index=1 を使う"
+                "新規ドキュメントへの先頭挿入は index=1 を使う。"
+                "特定タブへの操作は location に tabId を追加する"
+                '（例: {"index": 1, "tabId": "<tab_id>"}）'
             ),
             "endIndex_tip": "ドキュメント末尾の index は plain_text の文字数 + 1 が目安",
         },
