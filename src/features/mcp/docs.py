@@ -220,7 +220,7 @@ def _format_tab(tab: dict, include_elements: bool) -> dict[str, Any]:
         "tab_id": props.get("tabId", ""),
         "title": props.get("title", ""),
         "index": props.get("index", 0),
-        "tab_depth": props.get("tabDepth", 0),
+        "nesting_level": props.get("nestingLevel", 0),
         "plain_text": "".join(plain_text_parts),
         "element_count": element_count,
     }
@@ -375,7 +375,7 @@ async def docs_get_document(
             element_count,     # 全タブの合計要素数
             tab_count,         # トップレベルのタブ数
             tabs: [{
-                tab_id, title, index, tab_depth,
+                tab_id, title, index, nesting_level,
                 parent_tab_id?,  # ネストされたタブの場合のみ
                 plain_text,      # このタブのテキスト
                 element_count,   # このタブの要素数
@@ -700,21 +700,21 @@ def docs_batch_update_help() -> dict:
             },
         },
         "tab_operations": {
-            "createTab": {
+            "addDocumentTab": {
                 "desc": "新しいタブを作成する",
-                "example": {"createTab": {"tabProperties": {"title": "新しいタブ"}}},
+                "example": {"addDocumentTab": {"tabProperties": {"title": "新しいタブ"}}},
             },
             "deleteTab": {
                 "desc": "タブとその子タブをすべて削除する",
                 "example": {"deleteTab": {"tabId": "<tab_id>"}},
             },
-            "updateTab": {
+            "updateDocumentTabProperties": {
                 "desc": "タブのプロパティ（タイトルなど）を更新する",
-                "fields": "tabProperties.title | tabProperties.index",
+                "fields": "title | index",
                 "example": {
-                    "updateTab": {
-                        "tab": {"tabProperties": {"title": "新しいタイトル"}},
-                        "updateMask": "tabProperties.title",
+                    "updateDocumentTabProperties": {
+                        "tabProperties": {"title": "新しいタイトル"},
+                        "fields": "title",
                     }
                 },
             },
