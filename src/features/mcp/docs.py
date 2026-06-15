@@ -216,20 +216,28 @@ def _format_tab(tab: dict, include_elements: bool) -> dict[str, Any]:
     else:
         element_count = sum(1 for e in body_content if _format_structural_element(e) is not None)
 
+    child_tabs = _collect_tabs_recursive(tab.get("childTabs", []), include_elements)
+
+    # child_tabs のテキスト・要素数を再帰的に集計する
+    child_plain_texts = [ct["plain_text"] for ct in child_tabs if ct["plain_text"]]
+    child_element_count = sum(ct["element_count"] for ct in child_tabs)
+
+    all_plain_text_parts = plain_text_parts + child_plain_texts
+    total_element_count = element_count + child_element_count
+
     result: dict[str, Any] = {
         "tab_id": props.get("tabId", ""),
         "title": props.get("title", ""),
         "index": props.get("index", 0),
-        "tab_depth": props.get("tabDepth", 0),
-        "plain_text": "".join(plain_text_parts),
-        "element_count": element_count,
+        "nesting_level": props.get("nestingLevel", 0),
+        "plain_text": "\n".join(all_plain_text_parts),
+        "element_count": total_element_count,
     }
     if include_elements:
         result["elements"] = elements
     parent_tab_id = props.get("parentTabId")
     if parent_tab_id:
         result["parent_tab_id"] = parent_tab_id
-    child_tabs = _collect_tabs_recursive(tab.get("childTabs", []), include_elements)
     if child_tabs:
         result["child_tabs"] = child_tabs
     return result
@@ -238,6 +246,45 @@ def _format_tab(tab: dict, include_elements: bool) -> dict[str, Any]:
 def _collect_tabs_recursive(tabs: list[dict], include_elements: bool) -> list[dict[str, Any]]:
     """Tab リストを再帰的にフォーマットする（ネストされた childTabs も含む）。"""
     return [_format_tab(t, include_elements) for t in tabs]
+
+
+def _parse_named_ranges(named_ranges: dict) -> list[dict[str, Any]]:
+    """namedRanges map<string, NamedRanges> を [{name, named_range_id}] に変換する。"""
+    result = []
+    for name, named_ranges_obj in named_ranges.items():
+        for nr in named_ranges_obj.get("namedRanges", []):
+            result.append({"name": name, "named_range_id": nr.get("namedRangeId", "")})
+    return result
+
+
+def _collect_inline_objects_from_tabs(tabs: list[dict]) -> list[dict[str, Any]]:
+    """タブリスト（childTabs 含む）から inlineObjects を収集する。"""
+    result = []
+    for tab in tabs:
+        doc_tab = tab.get("documentTab", {})
+        for obj_id, obj in doc_tab.get("inlineObjects", {}).items():
+            props = obj.get("inlineObjectProperties", {}).get("embeddedObject", {})
+            result.append(
+                {
+                    "object_id": obj_id,
+                    "title": props.get("title", ""),
+                    "description": props.get("description", ""),
+                }
+            )
+        result.extend(_collect_inline_objects_from_tabs(tab.get("childTabs", [])))
+    return result
+
+
+def _collect_named_ranges_from_tabs(tabs: list[dict]) -> list[dict[str, Any]]:
+    """タブリスト（childTabs 含む）から namedRanges を収集する。"""
+    result = []
+    for tab in tabs:
+        doc_tab = tab.get("documentTab", {})
+        named_ranges = doc_tab.get("namedRanges", {})
+        if named_ranges:
+            result.extend(_parse_named_ranges(named_ranges))
+        result.extend(_collect_named_ranges_from_tabs(tab.get("childTabs", [])))
+    return result
 
 
 def _format_document(
@@ -260,6 +307,15 @@ def _format_document(
             "tab_count": len(tabs_formatted),
             "tabs": tabs_formatted,
         }
+
+        # タブモード時は inlineObjects / namedRanges が各タブの documentTab 内にある
+        inline_obj_list = _collect_inline_objects_from_tabs(raw_tabs)
+        if inline_obj_list:
+            result["inline_objects"] = inline_obj_list
+
+        named_range_list = _collect_named_ranges_from_tabs(raw_tabs)
+        if named_range_list:
+            result["named_ranges"] = named_range_list
     else:
         body_content = raw.get("body", {}).get("content", [])
         elements: list[dict[str, Any]] = []
@@ -292,27 +348,25 @@ def _format_document(
         if include_elements:
             result["elements"] = elements
 
-    inline_objects = raw.get("inlineObjects", {})
-    inline_obj_list: list[dict[str, Any]] = []
-    for obj_id, obj in inline_objects.items():
-        props = obj.get("inlineObjectProperties", {}).get("embeddedObject", {})
-        inline_obj_list.append(
-            {
-                "object_id": obj_id,
-                "title": props.get("title", ""),
-                "description": props.get("description", ""),
-            }
-        )
-    if inline_obj_list:
-        result["inline_objects"] = inline_obj_list
+        # レガシーモード時は inlineObjects / namedRanges がドキュメントルートにある
+        inline_objects = raw.get("inlineObjects", {})
+        inline_obj_list = []
+        for obj_id, obj in inline_objects.items():
+            props = obj.get("inlineObjectProperties", {}).get("embeddedObject", {})
+            inline_obj_list.append(
+                {
+                    "object_id": obj_id,
+                    "title": props.get("title", ""),
+                    "description": props.get("description", ""),
+                }
+            )
+        if inline_obj_list:
+            result["inline_objects"] = inline_obj_list
 
-    named_ranges = raw.get("namedRanges", {})
-    if named_ranges:
-        result["named_ranges"] = [
-            {"name": name, "named_range_id": nr.get("namedRangeId", "")}
-            for name, nr_list in named_ranges.items()
-            for nr in nr_list
-        ]
+        named_ranges = raw.get("namedRanges", {})
+        if named_ranges:
+            result["named_ranges"] = _parse_named_ranges(named_ranges)
+
     return result
 
 
@@ -375,7 +429,7 @@ async def docs_get_document(
             element_count,     # 全タブの合計要素数
             tab_count,         # トップレベルのタブ数
             tabs: [{
-                tab_id, title, index, tab_depth,
+                tab_id, title, index, nesting_level,
                 parent_tab_id?,  # ネストされたタブの場合のみ
                 plain_text,      # このタブのテキスト
                 element_count,   # このタブの要素数
@@ -700,21 +754,21 @@ def docs_batch_update_help() -> dict:
             },
         },
         "tab_operations": {
-            "createTab": {
+            "addDocumentTab": {
                 "desc": "新しいタブを作成する",
-                "example": {"createTab": {"tabProperties": {"title": "新しいタブ"}}},
+                "example": {"addDocumentTab": {"tabProperties": {"title": "新しいタブ"}}},
             },
             "deleteTab": {
                 "desc": "タブとその子タブをすべて削除する",
                 "example": {"deleteTab": {"tabId": "<tab_id>"}},
             },
-            "updateTab": {
+            "updateDocumentTabProperties": {
                 "desc": "タブのプロパティ（タイトルなど）を更新する",
-                "fields": "tabProperties.title | tabProperties.index",
+                "fields": "title | index",
                 "example": {
-                    "updateTab": {
-                        "tab": {"tabProperties": {"title": "新しいタイトル"}},
-                        "updateMask": "tabProperties.title",
+                    "updateDocumentTabProperties": {
+                        "tabProperties": {"title": "新しいタイトル"},
+                        "fields": "title",
                     }
                 },
             },
