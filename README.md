@@ -1,6 +1,6 @@
 # gws-mcp
 
-Google Sheets MCP Server — Claude.ai のカスタムコネクタとして Google Sheets を操作するリモート MCP サーバー。
+Google Workspace MCP Server — Claude.ai のカスタムコネクタとして Google Sheets・Slides・Docs を操作するリモート MCP サーバー。
 
 ## 概要
 
@@ -49,13 +49,15 @@ gcloud run deploy gws-mcp \
 2. URL に Cloud Run のエンドポイントを入力（例: `https://gws-mcp-xxxx-an.a.run.app`）
 3. `ping` ツールを呼び出して疎通確認
 
-## フェーズ
+## 実装済み機能
 
-- **Phase 1**: `ping` ツールのみ・認証なし
-- **Phase 2（現在）**: OAuth 2.1 Authorization Server 実装
-- **Phase 3**: Google Sheets CRUD 実装
+- OAuth 2.1 Authorization Server（RFC 8414 / 9728 / 7591 / PKCE）
+- Google Sheets CRUD（9 ツール）
+- Google Slides CRUD（9 ツール）
+- Google Docs CRUD（7 ツール）
+- `ping` 疎通確認ツール
 
-## Phase 2 セットアップ
+## セットアップ
 
 ### 1. Google Cloud Console で OAuth クライアントを作成
 
