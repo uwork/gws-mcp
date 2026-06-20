@@ -1,10 +1,10 @@
 """Google OAuth ヘルパー: 認可URL生成・トークン交換・リフレッシュ。"""
 
-import base64
-import json
 import time
 
 import httpx
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 
 from config import (
     ALLOWED_GOOGLE_DOMAINS,
@@ -33,21 +33,21 @@ def build_google_auth_url(state: str) -> str:
     if ALLOWED_GOOGLE_DOMAINS:
         # 1ドメインの場合はそのドメインをヒントとして渡す（UI絞り込み）。
         # 複数の場合は "*" で任意のWorkspaceドメインを示す。
-        params["hd"] = next(iter(ALLOWED_GOOGLE_DOMAINS)) if len(ALLOWED_GOOGLE_DOMAINS) == 1 else "*"
+        params["hd"] = (
+            next(iter(ALLOWED_GOOGLE_DOMAINS)) if len(ALLOWED_GOOGLE_DOMAINS) == 1 else "*"
+        )
     query = "&".join(f"{k}={v}" for k, v in params.items())
     return f"{GOOGLE_AUTH_URL}?{query}"
 
 
 def extract_email_from_id_token(id_token: str) -> str | None:
-    """ID トークン（JWT）のペイロードからメールアドレスを取得する。
-    Google のトークンエンドポイントから HTTPS で直接受け取るため署名検証は省略。
+    """ID トークン（JWT）の署名・クレームを検証してメールアドレスを返す。
+    google-auth ライブラリで署名・iss・aud・exp を検証する。
     """
     try:
-        payload_b64 = id_token.split(".")[1]
-        padding = 4 - len(payload_b64) % 4
-        if padding != 4:
-            payload_b64 += "=" * padding
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        client_id = get_secret(SECRET_NAME_CLIENT_ID)
+        request = google_requests.Request()
+        payload = google_id_token.verify_oauth2_token(id_token, request, audience=client_id)
         if not payload.get("email_verified", False):
             return None
         return payload.get("email")
