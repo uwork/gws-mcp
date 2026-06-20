@@ -333,13 +333,16 @@ def test_callback_token_exchange_failure_returns_500(client, mocker, valid_googl
     assert r.status_code == 500
 
 
-def test_callback_domain_restriction_allowed_domain(client, mocker, pkce_pair, make_jwt):
+def test_callback_domain_restriction_allowed_domain(client, mocker, pkce_pair):
     oauth_routes.ALLOWED_GOOGLE_DOMAINS = frozenset({"example.com"})
     mocker.patch.object(oauth_routes, "save_tokens", MagicMock())
-    id_token = make_jwt("user@example.com")
+    mocker.patch(
+        "features.oauth.routes.extract_email_from_id_token",
+        return_value="user@example.com",
+    )
     _mock_exchange_tokens(
         mocker,
-        {"access_token": "gat", "refresh_token": "grt", "expires_in": 3600, "id_token": id_token},
+        {"access_token": "gat", "refresh_token": "grt", "expires_in": 3600, "id_token": "dummy"},
     )
     state_token = create_state(
         {
@@ -353,13 +356,16 @@ def test_callback_domain_restriction_allowed_domain(client, mocker, pkce_pair, m
     assert r.status_code == 302
 
 
-def test_callback_domain_restriction_blocked_domain(client, mocker, pkce_pair, make_jwt):
+def test_callback_domain_restriction_blocked_domain(client, mocker, pkce_pair):
     oauth_routes.ALLOWED_GOOGLE_DOMAINS = frozenset({"example.com"})
     mocker.patch.object(oauth_routes, "save_tokens", MagicMock())
-    id_token = make_jwt("user@other.com")
+    mocker.patch(
+        "features.oauth.routes.extract_email_from_id_token",
+        return_value="user@other.com",
+    )
     _mock_exchange_tokens(
         mocker,
-        {"access_token": "gat", "refresh_token": "grt", "expires_in": 3600, "id_token": id_token},
+        {"access_token": "gat", "refresh_token": "grt", "expires_in": 3600, "id_token": "dummy"},
     )
     state_token = create_state(
         {

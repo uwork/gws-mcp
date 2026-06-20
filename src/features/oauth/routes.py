@@ -160,6 +160,9 @@ async def callback(request: Request) -> Response:
     code_challenge = state_data["code_challenge"]
 
     mcp_code = create_state({"user_id": user_id, "code_challenge": code_challenge})
+    # 発行したコードのハッシュを Firestore に記録し、再利用を防ぐ
+    stored = load_tokens(user_id) or {}
+    save_tokens(user_id, {**stored, "mcp_code_hash": hashlib.sha256(mcp_code.encode()).hexdigest()})
     redirect_url = f"{mcp_redirect}?code={mcp_code}"
     if mcp_state:
         redirect_url += f"&state={mcp_state}"
@@ -238,14 +241,27 @@ async def token(request: Request) -> JSONResponse:
             )
 
         user_id = code_data["user_id"]
+
+        # 認可コードの再利用を防ぐ: Firestore に記録したハッシュと照合して即座に無効化する
+        code_hash = hashlib.sha256(code.encode()).hexdigest()
+        stored = load_tokens(user_id) or {}
+        if stored.get("mcp_code_hash") != code_hash:
+            return JSONResponse(
+                {"error": "invalid_grant", "error_description": "Code already used or invalid"},
+                status_code=400,
+            )
+
         mcp_token = create_state({"user_id": user_id, "type": "access", "issued_at": time.time()})
         mcp_refresh = create_state(
             {"user_id": user_id, "type": "refresh", "issued_at": time.time()}
         )
-        stored = load_tokens(user_id) or {}
         save_tokens(
             user_id,
-            {**stored, "mcp_refresh_fingerprint": hashlib.sha256(mcp_refresh.encode()).hexdigest()},
+            {
+                **stored,
+                "mcp_code_hash": None,  # 使用済みにする
+                "mcp_refresh_fingerprint": hashlib.sha256(mcp_refresh.encode()).hexdigest(),
+            },
         )
         return JSONResponse(
             {

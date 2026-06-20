@@ -4,10 +4,8 @@ HTTP 呼び出しはすべて unittest.mock で差し替える。
 非同期関数は pytest-anyio ではなく anyio.pytest_plugin の @pytest.mark.anyio を使う。
 """
 
-import base64
-import json
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -20,53 +18,52 @@ from features.oauth.google import (
     refresh_access_token,
 )
 
-
 # ---------------------------------------------------------------------------
-# extract_email_from_id_token — 純粋関数
+# extract_email_from_id_token — google-auth による署名検証あり
 # ---------------------------------------------------------------------------
 
-
-def _make_id_token(email: str, email_verified: bool = True, extra: dict | None = None) -> str:
-    payload = {"email": email, "email_verified": email_verified, **(extra or {})}
-    b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
-    return f"header.{b64}.fakesig"
+# verify_oauth2_token の戻り値をモックして各シナリオを検証する
 
 
-def test_extract_email_valid():
-    token = _make_id_token("user@example.com")
-    assert extract_email_from_id_token(token) == "user@example.com"
+def _patch_verify(mocker, payload):
+    """google_id_token.verify_oauth2_token をモックして payload を返す。"""
+    mocker.patch.object(
+        google_module.google_id_token,
+        "verify_oauth2_token",
+        return_value=payload,
+    )
+    mocker.patch.object(google_module, "get_secret", return_value="test-client-id")
 
 
-def test_extract_email_unverified_returns_none():
-    token = _make_id_token("user@example.com", email_verified=False)
-    assert extract_email_from_id_token(token) is None
+def test_extract_email_valid(mocker):
+    _patch_verify(mocker, {"email": "user@example.com", "email_verified": True})
+    assert extract_email_from_id_token("fake.token.sig") == "user@example.com"
 
 
-def test_extract_email_missing_verified_flag_returns_none():
-    payload = {"email": "user@example.com"}
-    b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
-    token = f"header.{b64}.sig"
-    assert extract_email_from_id_token(token) is None
+def test_extract_email_unverified_returns_none(mocker):
+    _patch_verify(mocker, {"email": "user@example.com", "email_verified": False})
+    assert extract_email_from_id_token("fake.token.sig") is None
 
 
-def test_extract_email_missing_email_field_returns_none():
-    payload = {"email_verified": True}
-    b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
-    token = f"header.{b64}.sig"
-    assert extract_email_from_id_token(token) is None
+def test_extract_email_missing_verified_flag_returns_none(mocker):
+    _patch_verify(mocker, {"email": "user@example.com"})
+    assert extract_email_from_id_token("fake.token.sig") is None
 
 
-def test_extract_email_malformed_jwt_returns_none():
-    assert extract_email_from_id_token("not-a-jwt") is None
+def test_extract_email_missing_email_field_returns_none(mocker):
+    _patch_verify(mocker, {"email_verified": True})
+    assert extract_email_from_id_token("fake.token.sig") is None
 
 
-def test_extract_email_invalid_base64_returns_none():
-    assert extract_email_from_id_token("hdr.!!!invalid!!!.sig") is None
-
-
-def test_extract_email_non_json_payload_returns_none():
-    b64 = base64.urlsafe_b64encode(b"not-json").rstrip(b"=").decode()
-    assert extract_email_from_id_token(f"hdr.{b64}.sig") is None
+def test_extract_email_invalid_token_returns_none(mocker):
+    """verify_oauth2_token が例外を投げた場合は None を返す。"""
+    mocker.patch.object(
+        google_module.google_id_token,
+        "verify_oauth2_token",
+        side_effect=ValueError("Invalid token"),
+    )
+    mocker.patch.object(google_module, "get_secret", return_value="test-client-id")
+    assert extract_email_from_id_token("invalid") is None
 
 
 # ---------------------------------------------------------------------------
@@ -105,9 +102,7 @@ def test_build_google_auth_url_single_domain_adds_hd(mocker):
 
 def test_build_google_auth_url_multi_domain_adds_wildcard_hd(mocker):
     mocker.patch.object(google_module, "get_secret", side_effect=_mock_get_secret)
-    mocker.patch.object(
-        google_module, "ALLOWED_GOOGLE_DOMAINS", frozenset({"a.com", "b.com"})
-    )
+    mocker.patch.object(google_module, "ALLOWED_GOOGLE_DOMAINS", frozenset({"a.com", "b.com"}))
     url = build_google_auth_url("s")
     assert "hd=*" in url
 
@@ -219,9 +214,7 @@ async def test_get_valid_access_token_returns_cached_fresh_token(mocker):
 async def test_get_valid_access_token_does_not_refresh_when_fresh(mocker):
     tokens = {"access_token": "fresh", "refresh_token": "rt", "expiry": time.time() + 3600}
     mocker.patch.object(google_module, "load_tokens", return_value=tokens)
-    mock_refresh = mocker.patch.object(
-        google_module, "refresh_access_token", new=AsyncMock()
-    )
+    mock_refresh = mocker.patch.object(google_module, "refresh_access_token", new=AsyncMock())
     await get_valid_access_token("user-x")
     mock_refresh.assert_not_awaited()
 

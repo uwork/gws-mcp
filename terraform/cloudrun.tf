@@ -12,11 +12,17 @@ resource "google_service_account" "gws_mcp" {
   display_name = "gws-mcp Cloud Run サービスアカウント"
 }
 
-# Secret Manager のシークレット読み取り権限
+# Secret Manager のシークレット読み取り権限（gws-mcp-* シークレットのみに限定）
 resource "google_project_iam_member" "gws_mcp_secret_accessor" {
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_service_account.gws_mcp.email}"
+
+  condition {
+    title       = "gws-mcp secrets only"
+    description = "gws-mcp-* プレフィックスのシークレットのみ読み取り可能"
+    expression  = "resource.name.startsWith(\"projects/${var.project_id}/secrets/gws-mcp-\")"
+  }
 }
 
 # Firestore の読み書き権限

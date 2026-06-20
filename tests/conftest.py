@@ -18,6 +18,10 @@ for _mod in [
     "google.cloud.firestore",
     "google.cloud.secretmanager",
     "google.auth",
+    "google.auth.transport",
+    "google.auth.transport.requests",
+    "google.oauth2",
+    "google.oauth2.id_token",
 ]:
     sys.modules.setdefault(_mod, MagicMock())
 
@@ -106,9 +110,7 @@ def make_jwt():
 
     def _make(email: str, email_verified: bool = True) -> str:
         payload = {"email": email, "email_verified": email_verified}
-        payload_b64 = (
-            base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
-        )
+        payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
         return f"header.{payload_b64}.fakesig"
 
     return _make
