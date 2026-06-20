@@ -461,19 +461,23 @@ _FAKE_GOOGLE_TOKENS = {
 }
 
 
-def _mock_storage_for_auth_code(mocker) -> MagicMock:
+def _mock_storage_for_auth_code(mocker, mcp_code: str | None = None) -> MagicMock:
     """authorization_code グラントで呼ばれる load_tokens / save_tokens をモック。
 
-    load_tokens は /callback が保存済みの Google tokens を返すことを再現する。
+    load_tokens は /callback が保存済みの Google tokens + mcp_code_hash を返すことを再現する。
+    mcp_code を渡すと、そのコードのハッシュを mcp_code_hash に含める。
     戻り値の MagicMock で save_tokens の呼び出し内容を検証できる。
     """
-    mocker.patch.object(oauth_routes, "load_tokens", return_value=dict(_FAKE_GOOGLE_TOKENS))
+    stored = dict(_FAKE_GOOGLE_TOKENS)
+    if mcp_code is not None:
+        stored["mcp_code_hash"] = hashlib.sha256(mcp_code.encode()).hexdigest()
+    mocker.patch.object(oauth_routes, "load_tokens", return_value=stored)
     return mocker.patch.object(oauth_routes, "save_tokens")
 
 
 def test_token_auth_code_success_form(client, pkce_pair, mocker):
-    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
+    _mock_storage_for_auth_code(mocker, mcp_code=mcp_code)
     r = client.post(
         "/token",
         data={
@@ -490,8 +494,8 @@ def test_token_auth_code_success_form(client, pkce_pair, mocker):
 
 
 def test_token_auth_code_token_type_is_bearer(client, pkce_pair, mocker):
-    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
+    _mock_storage_for_auth_code(mocker, mcp_code=mcp_code)
     body = client.post(
         "/token",
         data={
@@ -504,8 +508,8 @@ def test_token_auth_code_token_type_is_bearer(client, pkce_pair, mocker):
 
 
 def test_token_auth_code_access_token_contains_user_id(client, pkce_pair, mocker):
-    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair, user_id="test-user-999")
+    _mock_storage_for_auth_code(mocker, mcp_code=mcp_code)
     body = client.post(
         "/token",
         data={
@@ -521,8 +525,8 @@ def test_token_auth_code_access_token_contains_user_id(client, pkce_pair, mocker
 
 
 def test_token_auth_code_returns_refresh_token(client, pkce_pair, mocker):
-    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
+    _mock_storage_for_auth_code(mocker, mcp_code=mcp_code)
     body = client.post(
         "/token",
         data={
@@ -539,9 +543,8 @@ def test_token_auth_code_returns_refresh_token(client, pkce_pair, mocker):
 
 def test_token_auth_code_saves_fingerprint_preserving_google_tokens(client, pkce_pair, mocker):
     """fingerprint 保存時に Google tokens が上書きされないことを確認。"""
-
-    mock_save = _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
+    mock_save = _mock_storage_for_auth_code(mocker, mcp_code=mcp_code)
     body = client.post(
         "/token",
         data={
@@ -559,9 +562,27 @@ def test_token_auth_code_saves_fingerprint_preserving_google_tokens(client, pkce
     )
 
 
-def test_token_auth_code_success_json_body(client, pkce_pair, mocker):
-    _mock_storage_for_auth_code(mocker)
+def test_token_auth_code_replay_attack_returns_400(client, pkce_pair, mocker):
+    """同一認可コードの2回目使用は invalid_grant になること。"""
     mcp_code = _make_mcp_code(pkce_pair)
+    # Firestore に mcp_code_hash が存在しない状態（コード未発行 or 使用済み）を再現
+    mocker.patch.object(oauth_routes, "load_tokens", return_value=dict(_FAKE_GOOGLE_TOKENS))
+    mocker.patch.object(oauth_routes, "save_tokens")
+    r = client.post(
+        "/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": mcp_code,
+            "code_verifier": pkce_pair["verifier"],
+        },
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_grant"
+
+
+def test_token_auth_code_success_json_body(client, pkce_pair, mocker):
+    mcp_code = _make_mcp_code(pkce_pair)
+    _mock_storage_for_auth_code(mocker, mcp_code=mcp_code)
     r = client.post(
         "/token",
         json={
@@ -733,8 +754,8 @@ def test_token_refresh_rejects_when_no_firestore_record(client, mocker):
 
 def test_token_refresh_rejects_access_token(client, pkce_pair, mocker):
     """access_token を refresh_token グラントに使えないことを確認する。"""
-    _mock_storage_for_auth_code(mocker)
     mcp_code = _make_mcp_code(pkce_pair)
+    _mock_storage_for_auth_code(mocker, mcp_code=mcp_code)
     body = client.post(
         "/token",
         data={
