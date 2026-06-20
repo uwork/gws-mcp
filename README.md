@@ -6,7 +6,7 @@ Google Workspace MCP Server — Claude.ai のカスタムコネクタとして G
 
 | 項目 | 内容 |
 |---|---|
-| Transport | SSE（Server-Sent Events） |
+| Transport | Streamable HTTP |
 | 認証 | OAuth 2.1 + PKCE（Phase 2 以降） |
 | デプロイ先 | Google Cloud Run |
 | トークン永続化 | Cloud Firestore |
