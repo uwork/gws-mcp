@@ -313,9 +313,11 @@ def test_callback_mcp_state_omitted_when_empty(client, mocker, pkce_pair):
 
 def test_callback_calls_save_tokens(client, mocker, valid_google_state):
     mock_save = mocker.patch.object(oauth_routes, "save_tokens", MagicMock())
+    mocker.patch.object(oauth_routes, "load_tokens", return_value=None)
     _mock_exchange_tokens(mocker)
     client.get(f"/callback?code=google-code&state={valid_google_state}")
-    mock_save.assert_called_once()
+    # Google トークン保存 + mcp_code_hash 保存の計2回呼ばれる
+    assert mock_save.call_count == 2
 
 
 def test_callback_token_exchange_failure_returns_500(client, mocker, valid_google_state):
