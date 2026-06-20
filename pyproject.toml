@@ -1,7 +1,7 @@
 [project]
 name = "gws-mcp"
 version = "0.1.0"
-description = "Google Sheets MCP Server for Claude.ai custom connector"
+description = "Google Workspace MCP Server for Claude.ai custom connector"
 requires-python = ">=3.12"
 dependencies = [
     "mcp[cli]>=1.6.0",

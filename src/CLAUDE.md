@@ -135,7 +135,7 @@ Secret Manager に格納するシークレット名は `config.py` の定数に�
 ## 依存ライブラリ
 
 - `starlette` + `uvicorn` — ASGI フレームワーク
-- `mcp[streamable-http]` — FastMCP サーバー（Streamable HTTP トランスポート）
+- `mcp[cli]` — FastMCP サーバー（Streamable HTTP トランスポートを含む）
 - `httpx` — 非同期 HTTP クライアント（Google API 呼び出し）
 - `itsdangerous` — state / Bearer トークン署名
 - `google-cloud-firestore` — トークン永続化
