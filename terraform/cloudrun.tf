@@ -21,7 +21,11 @@ resource "google_project_iam_member" "gws_mcp_secret_accessor" {
   condition {
     title       = "gws-mcp secrets only"
     description = "gws-mcp-* プレフィックスのシークレットのみ読み取り可能"
-    expression  = "resource.name.startsWith(\"projects/${var.project_id}/secrets/gws-mcp-\")"
+    # Secret Manager の resource.name はプロジェクト ID ではなくプロジェクト番号を含む
+    # （projects/<project_number>/secrets/<secret_id>）ため、project 部分は
+    # ワイルドカード "_" で指定する。project_id を直接埋め込むと常に不一致になり
+    # Cloud Run からシークレットにアクセスできなくなる。
+    expression = "resource.name.startsWith(\"projects/_/secrets/gws-mcp-\")"
   }
 }
 
