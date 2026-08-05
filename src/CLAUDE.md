@@ -12,11 +12,12 @@ src/
 ├── features/
 │   ├── mcp/
 │   │   ├── instance.py        # FastMCP インスタンス（単一 mcp オブジェクト）
-│   │   ├── server.py          # ping ツール定義・sheets / slides / docs モジュール登録
+│   │   ├── server.py          # ping ツール定義・sheets / slides / docs / drive モジュール登録
 │   │   ├── auth.py            # ContextVar による user_id 管理
 │   │   ├── sheets.py          # Google Sheets MCP ツール定義
 │   │   ├── slides.py          # Google Slides MCP ツール定義
-│   │   └── docs.py            # Google Docs MCP ツール定義
+│   │   ├── docs.py            # Google Docs MCP ツール定義
+│   │   └── drive.py           # Google Drive MCP ツール定義（ファイル/フォルダ管理）
 │   └── oauth/
 │       ├── routes.py          # OAuth HTTP エンドポイント
 │       ├── google.py          # Google OAuth ヘルパー
@@ -54,7 +55,7 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
   - `spreadsheets` — Google Sheets 読み書き
   - `presentations` — Google Slides 読み書き
   - `documents` — Google Docs 読み書き
-  - `drive` — エクスポート・コメント読み書き（Drive API）
+  - `drive` — エクスポート・コメント・ファイル/フォルダ管理（Drive API）
 
 ## リクエストフロー（MCP ツール呼び出し時）
 
@@ -105,6 +106,12 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 | `docs_export` | `docs.py` | PDF / DOCX / テキスト / HTML 形式でエクスポート（Drive API） |
 | `docs_list_comments` | `docs.py` | コメント一覧取得（Drive API） |
 | `docs_add_comment` | `docs.py` | コメント追加（Drive API） |
+| `drive_list_files` | `drive.py` | ファイル／フォルダの一覧・検索 |
+| `drive_get_file` | `drive.py` | ファイル／フォルダのメタデータ取得 |
+| `drive_create_folder` | `drive.py` | フォルダ作成 |
+| `drive_rename_file` | `drive.py` | ファイル／フォルダのリネーム |
+| `drive_move_file` | `drive.py` | ファイル／フォルダの移動 |
+| `drive_copy_file` | `drive.py` | ファイルのコピー |
 
 ツールのレスポンスは Google API の camelCase / ネスト構造を整形した snake_case のフラット dict。  
 2D 配列に 2 行以上あれば `headers` / `records` キーも追加する（AI が扱いやすい形式）。

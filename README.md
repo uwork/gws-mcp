@@ -1,6 +1,6 @@
 # gws-mcp
 
-Google Workspace MCP Server — Claude.ai のカスタムコネクタとして Google Sheets・Slides・Docs を操作するリモート MCP サーバー。
+Google Workspace MCP Server — Claude.ai のカスタムコネクタとして Google Sheets・Slides・Docs・Drive を操作するリモート MCP サーバー。
 
 ## 概要
 
@@ -55,6 +55,7 @@ gcloud run deploy gws-mcp \
 - Google Sheets CRUD（9 ツール）
 - Google Slides CRUD（9 ツール）
 - Google Docs CRUD（7 ツール）
+- Google Drive ファイル/フォルダ管理（6 ツール）
 - `ping` 疎通確認ツール
 
 ## セットアップ
