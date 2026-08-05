@@ -112,6 +112,10 @@ Claude.ai ──[MCP OAuth 2.1]──► /authorize ──► Google OAuth ─�
 | `drive_rename_file` | `drive.py` | ファイル／フォルダのリネーム |
 | `drive_move_file` | `drive.py` | ファイル／フォルダの移動 |
 | `drive_copy_file` | `drive.py` | ファイルのコピー |
+| `drive_list_permissions` | `drive.py` | 共有設定（権限一覧）の取得 |
+| `drive_share_file` | `drive.py` | ファイル／フォルダの共有（権限追加） |
+| `drive_update_permission` | `drive.py` | 共有権限のロール変更 |
+| `drive_remove_permission` | `drive.py` | 共有権限の削除（アクセス取り消し） |
 
 ツールのレスポンスは Google API の camelCase / ネスト構造を整形した snake_case のフラット dict。  
 2D 配列に 2 行以上あれば `headers` / `records` キーも追加する（AI が扱いやすい形式）。

@@ -15,8 +15,12 @@ from features.mcp.drive import (
     drive_create_folder,
     drive_get_file,
     drive_list_files,
+    drive_list_permissions,
     drive_move_file,
+    drive_remove_permission,
     drive_rename_file,
+    drive_share_file,
+    drive_update_permission,
 )
 
 
@@ -36,6 +40,7 @@ def _make_httpx_mock(response_json: dict, status_code: int = 200) -> MagicMock:
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_client.post = AsyncMock(return_value=mock_response)
     mock_client.patch = AsyncMock(return_value=mock_response)
+    mock_client.delete = AsyncMock(return_value=mock_response)
     return mock_client
 
 
@@ -280,3 +285,115 @@ async def test_api_error_raises_http_status_error(mocker):
     mocker.patch("httpx.AsyncClient", return_value=mock_client)
     with pytest.raises(httpx.HTTPStatusError):
         await drive_get_file("missing-file")
+
+
+# ---------------------------------------------------------------------------
+# drive_list_permissions / drive_share_file / drive_update_permission /
+# drive_remove_permission
+# ---------------------------------------------------------------------------
+
+_PERMISSION_RAW = {
+    "id": "perm-1",
+    "type": "user",
+    "role": "writer",
+    "emailAddress": "alice@example.com",
+    "displayName": "Alice",
+}
+
+
+@pytest.mark.anyio
+async def test_drive_list_permissions_returns_formatted_permissions(mocker):
+    mock_client = _make_httpx_mock({"permissions": [_PERMISSION_RAW]})
+    mocker.patch("httpx.AsyncClient", return_value=mock_client)
+    result = await drive_list_permissions("file-1")
+    assert result["permission_count"] == 1
+    assert result["permissions"][0]["email_address"] == "alice@example.com"
+    assert result["permissions"][0]["display_name"] == "Alice"
+
+
+@pytest.mark.anyio
+async def test_drive_share_file_with_user_posts_email_and_role(mocker):
+    mock_client = _make_httpx_mock(_PERMISSION_RAW)
+    mocker.patch("httpx.AsyncClient", return_value=mock_client)
+    result = await drive_share_file(
+        "file-1", role="writer", share_type="user", email_address="alice@example.com"
+    )
+    body = mock_client.post.call_args[1]["json"]
+    assert body == {"type": "user", "role": "writer", "emailAddress": "alice@example.com"}
+    assert result["role"] == "writer"
+
+
+@pytest.mark.anyio
+async def test_drive_share_file_anyone_omits_email(mocker):
+    mock_client = _make_httpx_mock({**_PERMISSION_RAW, "type": "anyone", "emailAddress": None})
+    mocker.patch("httpx.AsyncClient", return_value=mock_client)
+    await drive_share_file("file-1", role="reader", share_type="anyone")
+    body = mock_client.post.call_args[1]["json"]
+    assert body == {"type": "anyone", "role": "reader"}
+
+
+@pytest.mark.anyio
+async def test_drive_share_file_disables_notification_email(mocker):
+    mock_client = _make_httpx_mock(_PERMISSION_RAW)
+    mocker.patch("httpx.AsyncClient", return_value=mock_client)
+    await drive_share_file(
+        "file-1",
+        role="writer",
+        share_type="user",
+        email_address="alice@example.com",
+        send_notification_email=False,
+    )
+    params = mock_client.post.call_args[1]["params"]
+    assert params["sendNotificationEmail"] == "false"
+
+
+@pytest.mark.anyio
+async def test_drive_share_file_invalid_role_raises_value_error(mocker):
+    with pytest.raises(ValueError):
+        await drive_share_file(
+            "file-1", role="bogus", share_type="user", email_address="alice@example.com"
+        )
+
+
+@pytest.mark.anyio
+async def test_drive_share_file_invalid_type_raises_value_error(mocker):
+    with pytest.raises(ValueError):
+        await drive_share_file("file-1", role="writer", share_type="bogus")
+
+
+@pytest.mark.anyio
+async def test_drive_share_file_user_without_email_raises_value_error(mocker):
+    with pytest.raises(ValueError):
+        await drive_share_file("file-1", role="writer", share_type="user")
+
+
+@pytest.mark.anyio
+async def test_drive_share_file_domain_without_domain_raises_value_error(mocker):
+    with pytest.raises(ValueError):
+        await drive_share_file("file-1", role="reader", share_type="domain")
+
+
+@pytest.mark.anyio
+async def test_drive_update_permission_patches_role(mocker):
+    updated = {**_PERMISSION_RAW, "role": "reader"}
+    mock_client = _make_httpx_mock(updated)
+    mocker.patch("httpx.AsyncClient", return_value=mock_client)
+    result = await drive_update_permission("file-1", "perm-1", "reader")
+    body = mock_client.patch.call_args[1]["json"]
+    assert body == {"role": "reader"}
+    assert result["role"] == "reader"
+
+
+@pytest.mark.anyio
+async def test_drive_update_permission_invalid_role_raises_value_error(mocker):
+    with pytest.raises(ValueError):
+        await drive_update_permission("file-1", "perm-1", "bogus")
+
+
+@pytest.mark.anyio
+async def test_drive_remove_permission_deletes_and_returns_success(mocker):
+    mock_client = _make_httpx_mock({})
+    mocker.patch("httpx.AsyncClient", return_value=mock_client)
+    result = await drive_remove_permission("file-1", "perm-1")
+    mock_client.delete.assert_awaited_once()
+    assert result == {"success": True, "file_id": "file-1", "permission_id": "perm-1"}
