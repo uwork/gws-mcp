@@ -96,9 +96,35 @@ async def _drive_patch(path: str, body: dict | None = None, params: dict | None 
         return resp.json()
 
 
+async def _drive_delete(path: str, params: dict | None = None) -> None:
+    token = await _get_token()
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{_DRIVE_BASE}{path}",
+            headers=_auth_headers(token),
+            params=params or {},
+            timeout=30,
+        )
+        _raise_for_error(resp)
+
+
 def _escape_query_value(value: str) -> str:
     """Drive API の q パラメータに埋め込む文字列をエスケープする。"""
     return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+_PERMISSION_FIELDS = (
+    "id,type,role,emailAddress,domain,displayName,allowFileDiscovery,expirationTime,deleted"
+)
+_VALID_PERMISSION_TYPES = {"user", "group", "domain", "anyone"}
+_VALID_PERMISSION_ROLES = {
+    "owner",
+    "organizer",
+    "fileOrganizer",
+    "writer",
+    "commenter",
+    "reader",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +149,28 @@ def _format_file(raw: dict) -> dict[str, Any]:
     }
     if "size" in raw:
         result["size_bytes"] = int(raw["size"])
+    return result
+
+
+def _format_permission(raw: dict) -> dict[str, Any]:
+    """Drive API の Permission リソースを AI フレンドリーな dict に変換する。"""
+    result: dict[str, Any] = {
+        "id": raw.get("id", ""),
+        "type": raw.get("type", ""),
+        "role": raw.get("role", ""),
+    }
+    if "emailAddress" in raw:
+        result["email_address"] = raw["emailAddress"]
+    if "domain" in raw:
+        result["domain"] = raw["domain"]
+    if "displayName" in raw:
+        result["display_name"] = raw["displayName"]
+    if "allowFileDiscovery" in raw:
+        result["allow_file_discovery"] = raw["allowFileDiscovery"]
+    if "expirationTime" in raw:
+        result["expiration_time"] = raw["expirationTime"]
+    if "deleted" in raw:
+        result["deleted"] = raw["deleted"]
     return result
 
 
@@ -319,3 +367,131 @@ async def drive_copy_file(
         params={"fields": _FILE_FIELDS, "supportsAllDrives": "true"},
     )
     return _format_file(raw)
+
+
+@mcp.tool()
+async def drive_list_permissions(file_id: str) -> dict:
+    """ファイル／フォルダの共有設定（権限一覧）を取得する。
+
+    Args:
+        file_id: ファイル ID またはフォルダ ID
+
+    Returns:
+        {
+            permissions: [{
+                id, type, role, email_address?, domain?,
+                display_name?, allow_file_discovery?, expiration_time?, deleted?
+            }, ...],
+            permission_count
+        }
+    """
+    raw = await _drive_get_json(
+        f"/files/{file_id}/permissions",
+        params={
+            "fields": f"permissions({_PERMISSION_FIELDS})",
+            "supportsAllDrives": "true",
+        },
+    )
+    permissions = [_format_permission(p) for p in raw.get("permissions", [])]
+    return {"permissions": permissions, "permission_count": len(permissions)}
+
+
+@mcp.tool()
+async def drive_share_file(
+    file_id: str,
+    role: str,
+    share_type: str = "user",
+    email_address: str | None = None,
+    domain: str | None = None,
+    allow_file_discovery: bool | None = None,
+    send_notification_email: bool = True,
+    message: str | None = None,
+) -> dict:
+    """ファイル／フォルダを共有する（新しい権限を追加する）。
+
+    Args:
+        role: 付与する権限。"owner" | "organizer" | "fileOrganizer" | "writer" |
+            "commenter" | "reader"
+        share_type: 共有対象の種類。"user"（既定）| "group" | "domain" | "anyone"
+        email_address: share_type が "user" または "group" の場合に必須。共有先のメールアドレス
+        domain: share_type が "domain" の場合に必須。共有先のドメイン名
+        allow_file_discovery: share_type が "domain" または "anyone" の場合、検索での
+            発見を許可するかどうか
+        send_notification_email: share_type が "user"／"group" の場合に通知メールを送るかどうか
+        message: 通知メールに含めるメッセージ（send_notification_email が True の場合のみ有効）
+
+    Returns:
+        { id, type, role, email_address?, domain?, display_name?,
+          allow_file_discovery?, expiration_time?, deleted? }
+    """
+    if share_type not in _VALID_PERMISSION_TYPES:
+        raise ValueError(
+            f"無効な share_type です: {share_type!r}。有効な値: {sorted(_VALID_PERMISSION_TYPES)}"
+        )
+    if role not in _VALID_PERMISSION_ROLES:
+        raise ValueError(f"無効な role です: {role!r}。有効な値: {sorted(_VALID_PERMISSION_ROLES)}")
+    if share_type in ("user", "group") and not email_address:
+        raise ValueError(f"share_type={share_type!r} の場合 email_address は必須です")
+    if share_type == "domain" and not domain:
+        raise ValueError("share_type='domain' の場合 domain は必須です")
+
+    body: dict[str, Any] = {"type": share_type, "role": role}
+    if email_address:
+        body["emailAddress"] = email_address
+    if domain:
+        body["domain"] = domain
+    if allow_file_discovery is not None:
+        body["allowFileDiscovery"] = allow_file_discovery
+
+    params: dict[str, Any] = {
+        "fields": _PERMISSION_FIELDS,
+        "supportsAllDrives": "true",
+        "sendNotificationEmail": "true" if send_notification_email else "false",
+    }
+    if message and send_notification_email:
+        params["emailMessage"] = message
+
+    raw = await _drive_post(f"/files/{file_id}/permissions", body, params=params)
+    return _format_permission(raw)
+
+
+@mcp.tool()
+async def drive_update_permission(file_id: str, permission_id: str, role: str) -> dict:
+    """既存の共有権限のロールを変更する。
+
+    Args:
+        file_id: ファイル ID またはフォルダ ID
+        permission_id: 変更対象の権限 ID（drive_list_permissions で取得できる）
+        role: 新しい権限。"owner" | "organizer" | "fileOrganizer" | "writer" |
+            "commenter" | "reader"
+
+    Returns:
+        { id, type, role, email_address?, domain?, display_name?,
+          allow_file_discovery?, expiration_time?, deleted? }
+    """
+    if role not in _VALID_PERMISSION_ROLES:
+        raise ValueError(f"無効な role です: {role!r}。有効な値: {sorted(_VALID_PERMISSION_ROLES)}")
+    raw = await _drive_patch(
+        f"/files/{file_id}/permissions/{permission_id}",
+        {"role": role},
+        params={"fields": _PERMISSION_FIELDS, "supportsAllDrives": "true"},
+    )
+    return _format_permission(raw)
+
+
+@mcp.tool()
+async def drive_remove_permission(file_id: str, permission_id: str) -> dict:
+    """共有権限を削除し、アクセスを取り消す。
+
+    Args:
+        file_id: ファイル ID またはフォルダ ID
+        permission_id: 削除対象の権限 ID（drive_list_permissions で取得できる）
+
+    Returns:
+        { success: true, file_id, permission_id }
+    """
+    await _drive_delete(
+        f"/files/{file_id}/permissions/{permission_id}",
+        params={"supportsAllDrives": "true"},
+    )
+    return {"success": True, "file_id": file_id, "permission_id": permission_id}
