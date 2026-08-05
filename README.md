@@ -49,6 +49,12 @@ gcloud run deploy gws-mcp \
 2. URL に Cloud Run のエンドポイントを入力（例: `https://gws-mcp-xxxx-an.a.run.app`）
 3. `ping` ツールを呼び出して疎通確認
 
+> **新しいツールが見えない場合**: このリポジトリに CI/CD の自動デプロイは無いため、
+> main にマージしただけでは本番の Cloud Run サービスにコードは反映されない。
+> まず `make deploy` で再デプロイしたか確認する。再デプロイ済みでもツールが増えない場合は、
+> Claude.ai 側がコネクタのツール一覧をキャッシュしているため、Settings → Connectors で
+> 対象コネクタを一度切断→再接続して一覧を取り直す。
+
 ## 実装済み機能
 
 - OAuth 2.1 Authorization Server（RFC 8414 / 9728 / 7591 / PKCE）

@@ -138,6 +138,11 @@ Secret Manager に格納するシークレット名は `config.py` の定数に�
 1. `features/mcp/sheets.py`（または新規モジュール）に `@mcp.tool()` デコレータで関数を定義
 2. 新規モジュールの場合は `features/mcp/server.py` の末尾に `import features.mcp.<module>` を追加
 3. `mcp` インスタンスは必ず `features/mcp/instance.py` から import する
+4. **`make deploy`（`gcloud run deploy --source=.`）で Cloud Run に再デプロイする。**
+   このリポジトリに CI/CD の自動デプロイは無く、main にマージしただけでは本番に反映されない
+5. Claude.ai 側は接続済みコネクタのツール一覧をキャッシュしている。再デプロイ後も新規ツールが
+   見えない場合は、Settings → Connectors で対象コネクタを一度切断→再接続するか、MCP クライアントの
+   再接続（reconnect / refresh）操作でツール一覧を再取得させる
 
 ## 依存ライブラリ
 
